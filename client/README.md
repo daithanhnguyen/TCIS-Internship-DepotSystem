@@ -1,59 +1,80 @@
-# Client
+# Depot System · Client
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 22.2.2.
+User interface of the container depot management system (TCIS internship), built from the business document "SNP - HỆ THỐNG QUẢN LÝ DEPOT".
+Written in Angular 22 (standalone components, signals, reactive forms). The API lives in [src/](../src/README.md).
 
-## Development server
+| Part | Folder | README |
+|:--|:--|:--|
+| Backend (API, business rules, database) | `src/` | [src/README.md](../src/README.md) |
+| User interface (Angular 22) | `client/` | this file |
+| Original template (architecture, built-in features) | repository root | [README.md](../README.md) |
 
-To start a local development server, run:
+## 1. Requirements
 
-```bash
-ng serve
+| Software | Version | Notes |
+|:--|:--|:--|
+| Node.js | 22.22 or later (24 LTS recommended) | Angular CLI 22 does not run on older Node versions |
+| npm | bundled with Node | |
+| Running backend | | See [src/README.md](../src/README.md); the client calls the API through a proxy |
+
+## 2. First-time setup (once per machine)
+
+Run in `client/` (PowerShell):
+
+```powershell
+npm ci
 ```
 
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
+`npm ci` installs the exact versions in `package-lock.json`. Use `npm install` only to add or upgrade packages.
 
-## Code scaffolding
+## 3. Run
 
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
+| Task | Command (in `client/`) | Notes |
+|:--|:--|:--|
+| Development server | `npm start` | `http://localhost:4200`, reloads on every code change |
+| API calls | (automatic) | `proxy.conf.json` forwards every `/api` request to `https://localhost:7200` |
+| Sign in | | `admin@TechSpherex.dev` / `Admin@123` |
 
-```bash
-ng generate component component-name
-```
+If a screen says "Không kết nối được API" (cannot reach the API), check that Aspire (the backend) is running.
 
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
+## 4. Test
 
-```bash
-ng generate --help
-```
+| Task | Command (in `client/`) | Expected result |
+|:--|:--|:--|
+| Build | `npx ng build` | No errors, output in `dist/` |
+| Unit tests | `npx ng test --watch=false` | 72 passed |
 
-## Building
+Tests run with Vitest and do not need the backend.
 
-To build the project run:
+## 5. Folder layout
 
-```bash
-ng build
-```
+| Folder | Contents |
+|:--|:--|
+| `src/app/core/api/` | `api-error.ts`: turns API errors into Vietnamese messages by error code |
+| `src/app/core/auth/` | Sign-in, tokens, route guards |
+| `src/app/core/depot/` | Shared types and helpers (`depot-models.ts`), yard placement rules (`yard-rules.ts`), API services |
+| `src/app/features/` | One folder per screen: `gate-in`, `gate-out`, `yard`, `repairs`, `delivery-orders`, `statistics`, `catalog`, `auth` |
+| `src/app/shared/` | Shared components: `search-select` (search and scroll dropdown), `pager`, `yard-map`, `paged-details`, `toast` |
+| `src/app/layout/shell/` | Page frame: side menu and content area |
 
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
+Screens (`app.routes.ts`):
 
-## Running unit tests
+| Group | Paths |
+|:--|:--|
+| Operations | `/gate-in`, `/gate-out`, `/yard`, `/repairs`, `/delivery-orders` |
+| Statistics | `/statistics/inventory`, `/statistics/throughput`, `/statistics/history` |
+| Catalog | `/catalog/containers`, `/catalog/line-operators`, `/catalog/customers`, `/catalog/blocks` |
 
-To execute unit tests with the [Vitest](https://vitest.dev/) test runner, use the following command:
+## 6. Conventions
 
-```bash
-ng test
-```
+- Labels and messages on screen are in Vietnamese (the users' language). Code comments are in English.
+- Every new API error code needs a Vietnamese message in `MESSAGES` in `core/api/api-error.ts`.
+- Every paged list uses `LIST_PAGE_SIZE` (15 rows) from `shared/pager/pager.ts`. Search dropdowns load 20 rows at a time for scrolling.
+- Client-side checks (yard position, container number, ISO code...) follow the same rules as the API, only to show errors early. The API always has the final say.
+- Some screens take URL parameters to open with data already picked, for example `/gate-in?container=`, `/yard?container=`, `/repairs?caseId=` and `/catalog/containers?relations=`.
 
-## Running end-to-end tests
+## 7. Connection to the backend
 
-For end-to-end (e2e) testing, run:
-
-```bash
-ng e2e
-```
-
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
-
-## Additional Resources
-
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+- The client stores no data of its own. Everything comes from the API, so the screens show the Postgres data of the machine running the backend.
+- For data to try things with, create the demo dataset as described in section 7 of [src/README.md](../src/README.md).
+- If the API port changes, update `target` in `proxy.conf.json`.

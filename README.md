@@ -24,44 +24,6 @@
 
 ---
 
-## 🚢 Depot system (TCIS internship): chạy dự án và dữ liệu demo
-
-Hệ thống quản lý depot container theo tài liệu nghiệp vụ "SNP - HỆ THỐNG QUẢN LÝ DEPOT": backend .NET 10 trong `src/`, giao diện Angular 22 trong `client/`.
-
-### Chạy
-
-| Bước | Lệnh (chạy trong `src/`, trừ bước client) | Ghi chú |
-|:--|:--|:--|
-| Cần cài | .NET 10 SDK, Docker Desktop, Node.js ≥ 22.22 | Angular CLI 22 không chạy với Node cũ hơn |
-| Mật khẩu Postgres (1 lần) | `dotnet user-secrets init --project AppHost`<br>`dotnet user-secrets set "Parameters:postgres-password" "<mật khẩu>" --project AppHost` | Xem lại: `dotnet user-secrets list --project AppHost`. Phải trùng mật khẩu đã dùng khi volume được tạo lần đầu |
-| Backend | `dotnet run --project AppHost` | Mở Aspire dashboard; API tự chạy migration và tạo tài khoản admin khi khởi động (Development) |
-| Client | `cd client && npm install && npm start` | `http://localhost:4200`, gọi API qua proxy `https://localhost:7200` |
-| Build + test | `dotnet build TechSpherex.CleanArchitecture.slnx`<br>`dotnet test TechSpherex.CleanArchitecture.slnx`<br>`cd client && npx ng test --watch=false` | Unit test dùng EF InMemory và đồng hồ cố định, không đụng database thật |
-| Migration mới | `dotnet ef migrations add <Tên> --project Infrastructure --startup-project Api --output-dir Persistence/Migrations` | |
-
-Đăng nhập: `admin@TechSpherex.dev` / `Admin@123`.
-
-### Dữ liệu được giữ thế nào
-
-- Postgres là nơi lưu dữ liệu duy nhất. AppHost gắn **volume có tên `depot-postgres-data`** và để container sống lâu (`ContainerLifetime.Persistent`): tắt / mở lại Aspire, khởi động lại máy hay tạo lại container Postgres đều không mất dữ liệu.
-- Mật khẩu nằm trong user-secrets của AppHost (`Parameters:postgres-password`). Volume giữ mật khẩu của lần chạy đầu tiên, nên đổi user-secret mà không đổi mật khẩu trong DB sẽ làm Postgres báo `password authentication failed`.
-- Redis chỉ là cache, không phải nguồn dữ liệu: xoá Redis không mất gì.
-- Dữ liệu chỉ mất khi chủ động xoá volume (`docker volume rm depot-postgres-data`) hoặc chạy **Reset dữ liệu demo**.
-
-### Dữ liệu demo (140 container, giữ lịch sử)
-
-| Việc | Cách làm |
-|:--|:--|
-| Tạo / bổ sung | Aspire dashboard → resource **api** → `...` → **Tạo / bổ sung dữ liệu demo** (hoặc `POST /api/demo/seed` với token Admin trong Scalar) |
-| Reset | **Reset dữ liệu demo** (có xác nhận), hoặc `POST /api/demo/reset?confirm=reset-demo` với token Admin |
-
-- Lần chạy đầu lưu **mốc ngày** và tạo 5 hãng × 7 loại × (2 × 20ft + 2 × 40ft) = 140 container với lịch sử nhiều tháng (vào bãi, đảo chuyển, cấp rỗng, quay lại nhiều lần, giám định, dự toán, sửa ngoài...), tất cả chạy qua đúng quy tắc nghiệp vụ của các màn hình.
-- Chạy lại chỉ **bổ sung phần còn thiếu** với cùng mốc: không trùng, không dời ngày, không ghi đè thao tác người dùng đã làm trên dữ liệu demo.
-- Reset xoá toàn bộ dữ liệu depot (giữ tài khoản) rồi tạo lại với mốc mới. App không bao giờ tự tạo hay reset demo khi khởi động; route demo chỉ có khi chạy Development qua AppHost.
-- Bảng kịch bản (container nào để kiểm gì, kết quả mong đợi): [docs/demo-data.md](docs/demo-data.md).
-
----
-
 ## ✨ What's Included
 
 <table>
@@ -575,7 +537,6 @@ Follow the Todos pattern — four simple steps:
 | 🤖 [Skill Agents](docs/skill-agents.md) | AI agent pattern, LLM integration guide |
 | 📊 [Observability](docs/observability.md) | ELK, Grafana, OpenTelemetry, query examples |
 | 🚢 [Deployment](docs/deployment.md) | Production checklist, CI/CD, scaling strategies |
-| 📦 [Demo data](docs/demo-data.md) | Depot demo dataset: 140 containers, scenarios, seed / reset |
 
 ---
 

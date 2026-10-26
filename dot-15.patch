@@ -1,0 +1,281 @@
+diff --git a/README.md b/README.md
+index db2cb1c..a73eb46 100644
+--- a/README.md
++++ b/README.md
+@@ -24,44 +24,6 @@
+ 
+ ---
+ 
+-## 🚢 Depot system (TCIS internship): chạy dự án và dữ liệu demo
+-
+-Hệ thống quản lý depot container theo tài liệu nghiệp vụ "SNP - HỆ THỐNG QUẢN LÝ DEPOT": backend .NET 10 trong `src/`, giao diện Angular 22 trong `client/`.
+-
+-### Chạy
+-
+-| Bước | Lệnh (chạy trong `src/`, trừ bước client) | Ghi chú |
+-|:--|:--|:--|
+-| Cần cài | .NET 10 SDK, Docker Desktop, Node.js ≥ 22.22 | Angular CLI 22 không chạy với Node cũ hơn |
+-| Mật khẩu Postgres (1 lần) | `dotnet user-secrets init --project AppHost`<br>`dotnet user-secrets set "Parameters:postgres-password" "<mật khẩu>" --project AppHost` | Xem lại: `dotnet user-secrets list --project AppHost`. Phải trùng mật khẩu đã dùng khi volume được tạo lần đầu |
+-| Backend | `dotnet run --project AppHost` | Mở Aspire dashboard; API tự chạy migration và tạo tài khoản admin khi khởi động (Development) |
+-| Client | `cd client && npm install && npm start` | `http://localhost:4200`, gọi API qua proxy `https://localhost:7200` |
+-| Build + test | `dotnet build TechSpherex.CleanArchitecture.slnx`<br>`dotnet test TechSpherex.CleanArchitecture.slnx`<br>`cd client && npx ng test --watch=false` | Unit test dùng EF InMemory và đồng hồ cố định, không đụng database thật |
+-| Migration mới | `dotnet ef migrations add <Tên> --project Infrastructure --startup-project Api --output-dir Persistence/Migrations` | |
+-
+-Đăng nhập: `admin@TechSpherex.dev` / `Admin@123`.
+-
+-### Dữ liệu được giữ thế nào
+-
+-- Postgres là nơi lưu dữ liệu duy nhất. AppHost gắn **volume có tên `depot-postgres-data`** và để container sống lâu (`ContainerLifetime.Persistent`): tắt / mở lại Aspire, khởi động lại máy hay tạo lại container Postgres đều không mất dữ liệu.
+-- Mật khẩu nằm trong user-secrets của AppHost (`Parameters:postgres-password`). Volume giữ mật khẩu của lần chạy đầu tiên, nên đổi user-secret mà không đổi mật khẩu trong DB sẽ làm Postgres báo `password authentication failed`.
+-- Redis chỉ là cache, không phải nguồn dữ liệu: xoá Redis không mất gì.
+-- Dữ liệu chỉ mất khi chủ động xoá volume (`docker volume rm depot-postgres-data`) hoặc chạy **Reset dữ liệu demo**.
+-
+-### Dữ liệu demo (140 container, giữ lịch sử)
+-
+-| Việc | Cách làm |
+-|:--|:--|
+-| Tạo / bổ sung | Aspire dashboard → resource **api** → `...` → **Tạo / bổ sung dữ liệu demo** (hoặc `POST /api/demo/seed` với token Admin trong Scalar) |
+-| Reset | **Reset dữ liệu demo** (có xác nhận), hoặc `POST /api/demo/reset?confirm=reset-demo` với token Admin |
+-
+-- Lần chạy đầu lưu **mốc ngày** và tạo 5 hãng × 7 loại × (2 × 20ft + 2 × 40ft) = 140 container với lịch sử nhiều tháng (vào bãi, đảo chuyển, cấp rỗng, quay lại nhiều lần, giám định, dự toán, sửa ngoài...), tất cả chạy qua đúng quy tắc nghiệp vụ của các màn hình.
+-- Chạy lại chỉ **bổ sung phần còn thiếu** với cùng mốc: không trùng, không dời ngày, không ghi đè thao tác người dùng đã làm trên dữ liệu demo.
+-- Reset xoá toàn bộ dữ liệu depot (giữ tài khoản) rồi tạo lại với mốc mới. App không bao giờ tự tạo hay reset demo khi khởi động; route demo chỉ có khi chạy Development qua AppHost.
+-- Bảng kịch bản (container nào để kiểm gì, kết quả mong đợi): [docs/demo-data.md](docs/demo-data.md).
+-
+----
+-
+ ## ✨ What's Included
+ 
+ <table>
+@@ -575,7 +537,6 @@ Follow the Todos pattern — four simple steps:
+ | 🤖 [Skill Agents](docs/skill-agents.md) | AI agent pattern, LLM integration guide |
+ | 📊 [Observability](docs/observability.md) | ELK, Grafana, OpenTelemetry, query examples |
+ | 🚢 [Deployment](docs/deployment.md) | Production checklist, CI/CD, scaling strategies |
+-| 📦 [Demo data](docs/demo-data.md) | Depot demo dataset: 140 containers, scenarios, seed / reset |
+ 
+ ---
+ 
+diff --git a/client/README.md b/client/README.md
+index 72bbcff..7c07f59 100644
+--- a/client/README.md
++++ b/client/README.md
+@@ -1,59 +1,80 @@
+-# Client
++# Depot System · Client
+ 
+-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 22.2.2.
++User interface of the container depot management system (TCIS internship), built from the business document "SNP - HỆ THỐNG QUẢN LÝ DEPOT".
++Written in Angular 22 (standalone components, signals, reactive forms). The API lives in [src/](../src/README.md).
+ 
+-## Development server
++| Part | Folder | README |
++|:--|:--|:--|
++| Backend (API, business rules, database) | `src/` | [src/README.md](../src/README.md) |
++| User interface (Angular 22) | `client/` | this file |
++| Original template (architecture, built-in features) | repository root | [README.md](../README.md) |
+ 
+-To start a local development server, run:
++## 1. Requirements
+ 
+-```bash
+-ng serve
+-```
+-
+-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
++| Software | Version | Notes |
++|:--|:--|:--|
++| Node.js | 22.22 or later (24 LTS recommended) | Angular CLI 22 does not run on older Node versions |
++| npm | bundled with Node | |
++| Running backend | | See [src/README.md](../src/README.md); the client calls the API through a proxy |
+ 
+-## Code scaffolding
++## 2. First-time setup (once per machine)
+ 
+-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
++Run in `client/` (PowerShell):
+ 
+-```bash
+-ng generate component component-name
++```powershell
++npm ci
+ ```
+ 
+-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
++`npm ci` installs the exact versions in `package-lock.json`. Use `npm install` only to add or upgrade packages.
+ 
+-```bash
+-ng generate --help
+-```
++## 3. Run
+ 
+-## Building
++| Task | Command (in `client/`) | Notes |
++|:--|:--|:--|
++| Development server | `npm start` | `http://localhost:4200`, reloads on every code change |
++| API calls | (automatic) | `proxy.conf.json` forwards every `/api` request to `https://localhost:7200` |
++| Sign in | | `admin@TechSpherex.dev` / `Admin@123` |
+ 
+-To build the project run:
++If a screen says "Không kết nối được API" (cannot reach the API), check that Aspire (the backend) is running.
+ 
+-```bash
+-ng build
+-```
++## 4. Test
+ 
+-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
++| Task | Command (in `client/`) | Expected result |
++|:--|:--|:--|
++| Build | `npx ng build` | No errors, output in `dist/` |
++| Unit tests | `npx ng test --watch=false` | 72 passed |
+ 
+-## Running unit tests
++Tests run with Vitest and do not need the backend.
+ 
+-To execute unit tests with the [Vitest](https://vitest.dev/) test runner, use the following command:
++## 5. Folder layout
+ 
+-```bash
+-ng test
+-```
++| Folder | Contents |
++|:--|:--|
++| `src/app/core/api/` | `api-error.ts`: turns API errors into Vietnamese messages by error code |
++| `src/app/core/auth/` | Sign-in, tokens, route guards |
++| `src/app/core/depot/` | Shared types and helpers (`depot-models.ts`), yard placement rules (`yard-rules.ts`), API services |
++| `src/app/features/` | One folder per screen: `gate-in`, `gate-out`, `yard`, `repairs`, `delivery-orders`, `statistics`, `catalog`, `auth` |
++| `src/app/shared/` | Shared components: `search-select` (search and scroll dropdown), `pager`, `yard-map`, `paged-details`, `toast` |
++| `src/app/layout/shell/` | Page frame: side menu and content area |
+ 
+-## Running end-to-end tests
++Screens (`app.routes.ts`):
+ 
+-For end-to-end (e2e) testing, run:
++| Group | Paths |
++|:--|:--|
++| Operations | `/gate-in`, `/gate-out`, `/yard`, `/repairs`, `/delivery-orders` |
++| Statistics | `/statistics/inventory`, `/statistics/throughput`, `/statistics/history` |
++| Catalog | `/catalog/containers`, `/catalog/line-operators`, `/catalog/customers`, `/catalog/blocks` |
+ 
+-```bash
+-ng e2e
+-```
++## 6. Conventions
+ 
+-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
++- Labels and messages on screen are in Vietnamese (the users' language). Code comments are in English.
++- Every new API error code needs a Vietnamese message in `MESSAGES` in `core/api/api-error.ts`.
++- Every paged list uses `LIST_PAGE_SIZE` (15 rows) from `shared/pager/pager.ts`. Search dropdowns load 20 rows at a time for scrolling.
++- Client-side checks (yard position, container number, ISO code...) follow the same rules as the API, only to show errors early. The API always has the final say.
++- Some screens take URL parameters to open with data already picked, for example `/gate-in?container=`, `/yard?container=`, `/repairs?caseId=` and `/catalog/containers?relations=`.
+ 
+-## Additional Resources
++## 7. Connection to the backend
+ 
+-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
++- The client stores no data of its own. Everything comes from the API, so the screens show the Postgres data of the machine running the backend.
++- For data to try things with, create the demo dataset as described in section 7 of [src/README.md](../src/README.md).
++- If the API port changes, update `target` in `proxy.conf.json`.
+diff --git a/src/README.md b/src/README.md
+new file mode 100644
+index 0000000..36d431b
+--- /dev/null
++++ b/src/README.md
+@@ -0,0 +1,97 @@
++# Depot System · Backend
++
++Backend of the container depot management system (TCIS internship), built from the business document "SNP - HỆ THỐNG QUẢN LÝ DEPOT".
++Based on the TechSpherex Clean Architecture template (.NET 10, Aspire 13). The user interface lives in [client/](../client/README.md).
++
++| Part | Folder | README |
++|:--|:--|:--|
++| Backend (API, business rules, database) | `src/` | this file |
++| User interface (Angular 22) | `client/` | [client/README.md](../client/README.md) |
++| Original template (architecture, built-in features) | repository root | [README.md](../README.md) |
++
++## 1. Requirements
++
++| Software | Version | Notes |
++|:--|:--|:--|
++| .NET SDK | 10 | |
++| Docker Desktop | recent | Must be running: Aspire starts Postgres, Redis and pgAdmin in Docker |
++| dotnet-ef | 10.0.12 or later | Only needed to create new migrations |
++
++## 2. First-time setup (once per machine)
++
++Run in `src/` (PowerShell):
++
++```powershell
++dotnet tool install --global dotnet-ef --version 10.0.12
++dotnet dev-certs https --trust
++dotnet user-secrets set "Parameters:postgres-password" '<postgres password>' --project AppHost
++```
++
++- `AppHost.csproj` already has a `UserSecretsId`, so `user-secrets init` is not needed.
++- Set the password **before the first run**. The Postgres volume keeps the password it was created with. Changing the user secret later without changing it in the database makes Postgres answer `password authentication failed`.
++- The password lives only in the machine's user secrets. Never put it in `appsettings` or commit it.
++- Open a new PowerShell after installing `dotnet-ef`. If a newer version is already installed, keep it.
++
++## 3. Run
++
++| Task | Command (in `src/`) | Notes |
++|:--|:--|:--|
++| Run everything | `dotnet run --project AppHost` | Opens the Aspire dashboard (link printed in the console) |
++| API | (started by AppHost) | `https://localhost:7200`, API reference at `https://localhost:7200/scalar` |
++| Database | (automatic) | On startup the API applies migrations and creates the admin account |
++| Sign in | | `admin@TechSpherex.dev` / `Admin@123` |
++
++Then start the user interface as described in [client/README.md](../client/README.md).
++
++## 4. Test
++
++| Task | Command (in `src/`) | Expected result |
++|:--|:--|:--|
++| Build | `dotnet build` | No errors |
++| Unit and architecture tests | `dotnet test` | 292 passed (9 architecture + 283 unit tests) |
++
++Unit tests use EF InMemory and a fixed clock (`FixedTimeProvider`), so no real database is needed. The test projects are in `../tests/`.
++
++## 5. Folder layout
++
++| Folder | Contents |
++|:--|:--|
++| `Domain/` | Entities and business rules, for example `Container`, `ContainerVisit`, `Block`, `LineOperator` (partner), `OperatingAssignment`, `DeliveryOrder`, `RepairCase`, `RepairEstimate` and `ExternalRepairTransfer` |
++| `Application/Features/` | One folder per business area, one command or query plus handler per action (hand-written CQRS, FluentValidation) |
++| `Infrastructure/Persistence/` | `AppDbContext`, EF configuration, `Migrations/`, `AppDbSeeder` (sample data), `Demo/` (demo dataset) |
++| `Api/Endpoints/` | Minimal API groups: containers, container-visits (gate-in, gate-out, moves), blocks, line-operators, operating-assignments, delivery-orders, repair-cases, statistics, demo |
++| `AppHost/` | Aspire: Postgres (volume `depot-postgres-data`), Redis, pgAdmin, the API and the demo data commands |
++| `ServiceDefaults/` | Shared OpenTelemetry, health checks and service discovery |
++
++## 6. Conventions
++
++- Handlers return `Result` / `Error` and do not throw for business errors. Error codes look like `Area.Name`, for example `ContainerVisit.AlreadyInYard`. The client translates them for display.
++- Business dates use Vietnam time (`DepotTime`). Time comes from `TimeProvider`, so tests can fix the clock.
++- Code comments are in English.
++- To add a migration (in `src/`):
++
++  ```powershell
++  dotnet ef migrations add <Name> --project Infrastructure --startup-project Api --output-dir Persistence/Migrations
++  ```
++
++## 7. Data and demo dataset
++
++**How data is kept**
++
++- Postgres is the only data store. The named volume `depot-postgres-data` and the `Persistent` container lifetime keep the data when Aspire stops, the machine restarts or the container is recreated.
++- Redis is only a cache. Clearing it loses nothing.
++- Data is lost only when the volume is deleted on purpose (`docker volume rm depot-postgres-data`) or when the **Reset dữ liệu demo** command runs.
++- Each machine has its own data. Machines are not synchronised.
++
++**Demo dataset (140 containers with history)**
++
++| Task | How |
++|:--|:--|
++| Create / complete | Aspire dashboard → **api** resource → `...` → **Tạo / bổ sung dữ liệu demo** (create / complete demo data), or `POST /api/demo/seed` with an Admin token |
++| Reset | **Reset dữ liệu demo** (reset demo data, asks for confirmation), or `POST /api/demo/reset?confirm=reset-demo` with an Admin token |
++
++- The first run stores an **anchor date** and creates 5 operators × 7 types × (2 × 20ft + 2 × 40ft) containers, with several months of history that goes through the same business rules as the screens.
++- Running it again only **adds what is missing**, with the same anchor date: no duplicates and no date shifts.
++- Reset deletes all depot data (accounts are kept) and creates the demo again with a new anchor date.
++- The demo routes exist only in Development when started from AppHost.
++- Scenario of each container: [docs/demo-data.md](../docs/demo-data.md).
