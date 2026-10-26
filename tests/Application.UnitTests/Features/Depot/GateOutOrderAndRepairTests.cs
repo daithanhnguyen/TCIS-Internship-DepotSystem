@@ -195,7 +195,7 @@ public sealed class GateOutOrderAndRepairTests
     // ---------- gate-out candidates (feedback 6) ----------
 
     [Fact]
-    public async Task Candidates_Should_Match_Order_And_Explain_Blocked_Containers()
+    public async Task Candidates_Should_List_The_Order_Containers_And_Explain_Blocked_Ones()
     {
         await using var dbContext = TestDbContextFactory.Create();
         var seed = await SeedAsync(dbContext);
@@ -206,7 +206,9 @@ public sealed class GateOutOrderAndRepairTests
         var above = await AddContainerAsync(dbContext, "MSCU0000024");
         var reefer = await AddContainerAsync(dbContext, "MSCU0000030", category: ContainerCategory.Reefer);
         var big = await AddContainerAsync(dbContext, "MSCU0000045", ContainerSize.Ft40);
+        var outside = await AddContainerAsync(dbContext, "MSCU0000054");
         var otherLine = await AddContainerAsync(dbContext, "CMAU7654327");
+        var otherLineOutside = await AddContainerAsync(dbContext, "CMAU0000073");
         await GateInAsync(dbContext, seed, free, bay: 1);
         var damagedIn = await GateInAsync(dbContext, seed, damaged, bay: 3, condition: ContainerCondition.Damaged);
         await GateInAsync(dbContext, seed, under, bay: 5);
@@ -214,14 +216,19 @@ public sealed class GateOutOrderAndRepairTests
         await GateInAsync(dbContext, seed, reefer, bay: 7);
         await GateInAsync(dbContext, seed, big, bay: 12);
         await GateInAsync(dbContext, seed, otherLine, bay: 9, lineOperator: seed.Cma);
+        // Operated by MSC (or CMA) today but not in the yard
+        await DepotTestData.AssignAsync(dbContext, outside, seed.Msc);
+        await DepotTestData.AssignAsync(dbContext, otherLineOutside, seed.Cma);
         var handler = new GetGateOutCandidatesQueryHandler(dbContext, new FixedTimeProvider(Now));
 
         var result = await handler.HandleAsync(new GetGateOutCandidatesQuery(order.Id), TestContext.Current.CancellationToken);
         var exact = await handler.HandleAsync(new GetGateOutCandidatesQuery(order.Id, "mscu0000024"), TestContext.Current.CancellationToken);
 
-        // Reefer, 40ft and the CMA container do not match the order (MSC, Dry 20ft)
-        result.Value!.Items.Select(c => c.ContainerNumber).Should()
-            .BeEquivalentTo("MSCU1234566", "MSCU5551234", "MSCU0000019", "MSCU0000024");
+        // MSC Dry 20ft containers, in this order: in the yard, held by repair, not in the yard.
+        // Reefer, 40ft and the CMA containers are left out (order of MSC, Dry 20ft).
+        result.Value!.Items.Select(c => c.ContainerNumber).Should().Equal(
+            "MSCU0000019", "MSCU0000024", "MSCU1234566", "MSCU5551234", "MSCU0000054");
+        result.Value.TotalCount.Should().Be(5);
         var byNumber = result.Value.Items.ToDictionary(c => c.ContainerNumber);
         byNumber["MSCU1234566"].Eligible.Should().BeTrue();
         byNumber["MSCU0000024"].Eligible.Should().BeTrue();
@@ -229,9 +236,14 @@ public sealed class GateOutOrderAndRepairTests
         byNumber["MSCU5551234"].RepairCaseId.Should().Be(damagedIn.RepairCaseId);
         byNumber["MSCU0000019"].BlockReason.Should().Be("ContainerAbove");
         byNumber["MSCU0000019"].AboveContainerNumber.Should().Be("MSCU0000024");
-        // Containers that can leave come before the repair-blocked one
-        result.Value.Items[^1].ContainerNumber.Should().Be("MSCU5551234");
-        exact.Value!.Items.Should().ContainSingle(c => c.ContainerNumber == "MSCU0000024");
+        // Not in the yard: no visit, the situation says it never came in
+        var outsideRow = byNumber["MSCU0000054"];
+        outsideRow.BlockReason.Should().Be("NotInYard");
+        outsideRow.VisitId.Should().BeNull();
+        outsideRow.BlockCode.Should().BeNull();
+        outsideRow.Situation!.InYard.Should().BeFalse();
+        byNumber["MSCU1234566"].Situation!.InYard.Should().BeTrue();
+        exact.Value!.Items[0].ContainerNumber.Should().Be("MSCU0000024");
     }
 
     [Fact]

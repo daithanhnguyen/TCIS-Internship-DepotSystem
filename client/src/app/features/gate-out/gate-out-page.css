@@ -17,15 +17,15 @@
   cursor: pointer;
 }
 
-  .tab.active {
-    color: var(--ink);
-    border-bottom-color: var(--ink);
-  }
+.tab.active {
+  color: var(--ink);
+  border-bottom-color: var(--ink);
+}
 
-  .tab:focus-visible {
-    outline: 2px solid var(--focus);
-    outline-offset: 2px;
-  }
+.tab:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
 
 /* Label / value pairs of the outside repair request */
 .facts {
@@ -35,13 +35,13 @@
   margin: 0;
 }
 
-  .facts dt {
-    color: var(--muted);
-  }
+.facts dt {
+  color: var(--muted);
+}
 
-  .facts dd {
-    margin: 0;
-  }
+.facts dd {
+  margin: 0;
+}
 
 /* Form on the left, checks on the right (stacked on narrow screens) */
 .layout {
@@ -85,27 +85,27 @@
   gap: 12px;
 }
 
-  .checks li {
-    display: flex;
-    gap: 10px;
-    align-items: flex-start;
-  }
+.checks li {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
 
-    .checks li svg {
-      flex: none;
-    }
+.checks li svg {
+  flex: none;
+}
 
-    .checks li.ok svg {
-      color: #15803d;
-    }
+.checks li.ok svg {
+  color: #15803d;
+}
 
-    .checks li.fail svg {
-      color: var(--danger);
-    }
+.checks li.fail svg {
+  color: var(--danger);
+}
 
-    .checks li.pending svg {
-      color: var(--subtle);
-    }
+.checks li.pending svg {
+  color: var(--subtle);
+}
 
 .check-text {
   display: flex;
@@ -137,13 +137,13 @@
   align-items: flex-start;
 }
 
-  .condition-head h2 {
-    font-size: 16px;
-  }
+.condition-head h2 {
+  font-size: 16px;
+}
 
-  .condition-head p {
-    margin-top: 4px;
-  }
+.condition-head p {
+  margin-top: 4px;
+}
 
 .condition-fields {
   display: flex;

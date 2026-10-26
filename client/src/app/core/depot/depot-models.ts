@@ -1,7 +1,8 @@
 // Types matching the API responses (enums are sent as strings by JsonStringEnumConverter)
 
 export type ContainerSize = 'Ft20' | 'Ft40';
-export type ContainerCategory = 'Dry' | 'Reefer' | 'OpenTop' | 'FlatRack' | 'Bunker' | 'Ventilated' | 'Specialized';
+export type ContainerCategory =
+  'Dry' | 'Reefer' | 'OpenTop' | 'FlatRack' | 'Bunker' | 'Ventilated' | 'Specialized';
 export type ContainerCondition = 'Normal' | 'Damaged';
 
 // Domain/Common/PagedResult
@@ -140,7 +141,8 @@ export function gateInBadge(container: Container): StatusBadge | null {
   if (!situation) return null;
   if (situation.inYard) return { text: 'Đang trong bãi', tone: 'red' };
   if (!container.currentOperatorId) return { text: 'Chưa có hãng KT', tone: 'amber' };
-  if (situation.outsideRepairStatus === 'GatedOut') return { text: 'Về từ sửa ngoài', tone: 'indigo' };
+  if (situation.outsideRepairStatus === 'GatedOut')
+    return { text: 'Về từ sửa ngoài', tone: 'indigo' };
   return { text: 'Nhập được', tone: 'green' };
 }
 
@@ -152,17 +154,22 @@ export function situationText(situation: ContainerSituation | null | undefined):
   if (!situation) return '';
   const parts: string[] = [];
   if (situation.inYard) {
-    parts.push(`Tại ${formatPosition(situation.blockCode ?? '?', situation.bay, situation.row, situation.tier)}`);
+    parts.push(
+      `Tại ${formatPosition(situation.blockCode ?? '?', situation.bay, situation.row, situation.tier)}`,
+    );
     if (situation.outsideRepairStatus === 'Requested') parts.push('chờ xuất đi sửa ngoài');
   } else if (situation.outsideRepairStatus === 'GatedOut') {
     parts.push(`Ở xưởng ${situation.outsideRepairFacility}`);
   } else if (situation.lastGateOutAt) {
-    const purpose = situation.lastExitPurpose ? ` (${GATE_OUT_PURPOSE_LABEL[situation.lastExitPurpose]})` : '';
+    const purpose = situation.lastExitPurpose
+      ? ` (${GATE_OUT_PURPOSE_LABEL[situation.lastExitPurpose]})`
+      : '';
     parts.push(`Ra bãi ${formatDateTime(situation.lastGateOutAt)}${purpose}`);
   } else {
     parts.push('Chưa từng vào bãi');
   }
-  if (situation.openRepairStatus) parts.push(`Sửa chữa: ${REPAIR_STATUS_LABEL[situation.openRepairStatus]}`);
+  if (situation.openRepairStatus)
+    parts.push(`Sửa chữa: ${REPAIR_STATUS_LABEL[situation.openRepairStatus]}`);
   return parts.join(' · ');
 }
 
@@ -239,13 +246,19 @@ export function confirmedOverlap(
   Last day of the old relation when the container changes operator on `newFrom`: the day before.
   Null when that day is before the old start (the old relation would then be cancelled, not ended).
 */
-export function handoverEndDate(old: Pick<OperatingAssignment, 'validFrom'>, newFrom: string): string | null {
+export function handoverEndDate(
+  old: Pick<OperatingAssignment, 'validFrom'>,
+  newFrom: string,
+): string | null {
   const lastDay = addDays(newFrom, -1);
   return lastDay >= old.validFrom ? lastDay : null;
 }
 
 // Same rule as OperatingAssignment.CoversDate: confirmed and the date inside the period ("yyyy-MM-dd" compare)
-export function assignmentCovers(assignment: Pick<OperatingAssignment, 'status' | 'validFrom' | 'validTo'>, date: string): boolean {
+export function assignmentCovers(
+  assignment: Pick<OperatingAssignment, 'status' | 'validFrom' | 'validTo'>,
+  date: string,
+): boolean {
   return (
     assignment.status === 'Confirmed' &&
     assignment.validFrom <= date &&
@@ -336,7 +349,10 @@ export type YardSort = 'Position' | 'Oldest' | 'Newest';
 */
 export type RepairMarker = 'abnormal' | 'repair';
 
-export function repairMarker(item: { repairStatus: RepairCaseStatus | null; condition: ContainerCondition }): RepairMarker | null {
+export function repairMarker(item: {
+  repairStatus: RepairCaseStatus | null;
+  condition: ContainerCondition;
+}): RepairMarker | null {
   if (item.repairStatus === 'AwaitingInspection') return 'abnormal';
   if (item.repairStatus !== null && item.repairStatus !== 'Passed') return 'repair';
   return item.condition === 'Damaged' ? 'abnormal' : null;
@@ -512,36 +528,156 @@ export interface GateOutResult {
 }
 
 // Why a container of the order cannot leave yet; null = it can
-export type GateOutBlockReason = 'RepairCase' | 'Damaged' | 'ContainerAbove';
+export type GateOutBlockReason = 'NotInYard' | 'RepairCase' | 'Damaged' | 'ContainerAbove';
 
 export const GATE_OUT_BLOCK_LABEL: Record<GateOutBlockReason, string> = {
+  NotInYard: 'Không ở trong bãi',
   RepairCase: 'Đang có hồ sơ giám định/sửa chữa',
   Damaged: 'Đang hư hỏng',
   ContainerAbove: 'Có container xếp phía trên',
 };
 
 /*
-  GET /api/container-visits/gate-out-candidates?deliveryOrderId= (feedback 6): containers in the yard of the
-  order's line operator whose type and size the order still needs. Blocked ones are listed too, with the reason.
+  GET /api/container-visits/gate-out-candidates?deliveryOrderId= (feedback 6 + 26/10): the containers of the
+  order (its line operator, a type + size it still needs), in the yard or not. The ones that can leave come
+  first; the others carry the reason. visitId / blockCode / gateInAt are null out of the yard.
 */
 export interface GateOutCandidate {
-  visitId: string;
+  visitId: string | null;
   containerId: string;
   containerNumber: string;
   isoCode: string;
   size: ContainerSize;
   category: ContainerCategory;
-  blockCode: string;
+  blockCode: string | null;
   bay: number | null;
   row: number | null;
   tier: number | null;
   condition: ContainerCondition;
-  gateInAt: string;
+  gateInAt: string | null;
   blockReason: GateOutBlockReason | null;
   repairCaseId: string | null;
   repairStatus: RepairCaseStatus | null;
   aboveContainerNumber: string | null;
+  // Same "where is it" data as the gate-in dropdown (position, last exit, outside facility, repair step)
+  situation: ContainerSituation | null;
   eligible: boolean;
+}
+
+/*
+  Chip of a row in the gate-out dropdown (same look as gate-in): green when it can leave under the order,
+  red when repair or damage holds it, amber when another container rests on it, grey when it is not in the yard.
+*/
+export function gateOutBadge(
+  candidate: Pick<GateOutCandidate, 'blockReason' | 'repairStatus' | 'condition'>,
+): StatusBadge {
+  switch (candidate.blockReason) {
+    case null:
+      return { text: 'Xuất được', tone: 'green' };
+    case 'NotInYard':
+      // Out of the yard with an open case or recorded damage: red, because it needs the repair page first
+      if (candidate.repairStatus)
+        return { text: `Ngoài bãi · ${REPAIR_STATUS_LABEL[candidate.repairStatus]}`, tone: 'red' };
+      if (candidate.condition === 'Damaged') return { text: 'Ngoài bãi · Hư hỏng', tone: 'red' };
+      return { text: 'Không trong bãi', tone: 'grey' };
+    case 'RepairCase':
+      return {
+        text: candidate.repairStatus
+          ? REPAIR_STATUS_LABEL[candidate.repairStatus]
+          : 'Đang sửa chữa',
+        tone: 'red',
+      };
+    case 'Damaged':
+      return { text: 'Hư hỏng', tone: 'red' };
+    case 'ContainerAbove':
+      return { text: 'Bị đè', tone: 'amber' };
+  }
+}
+
+// A link to the screen that makes a blocked container available (router commands + query params)
+export interface GateOutResolution {
+  text: string;
+  link: string[];
+  query: Record<string, string>;
+}
+
+/*
+  Feedback 26/10: a container of the order that cannot leave yet gets a link to the screen that resolves it:
+  - repair case / damaged: the repair page (back link to the order);
+  - another container on top: the yard page with that container picked, to move it away;
+  - not in the yard but with an open case (for example at the outside facility) or recorded damage:
+    the repair page too, since the case decides what happens next;
+  - not in the yard and clean (released or never came in): the gate-in page with this container picked.
+  Null when the container can leave.
+*/
+export function gateOutResolution(
+  candidate: Pick<
+    GateOutCandidate,
+    | 'blockReason'
+    | 'containerNumber'
+    | 'repairCaseId'
+    | 'aboveContainerNumber'
+    | 'situation'
+    | 'condition'
+  >,
+  orderId: string,
+): GateOutResolution | null {
+  switch (candidate.blockReason) {
+    case null:
+      return null;
+    case 'RepairCase':
+      return {
+        text: 'Mở hồ sơ giám định/sửa chữa',
+        link: ['/repairs'],
+        query: candidate.repairCaseId
+          ? { caseId: candidate.repairCaseId, backOrderId: orderId }
+          : { backOrderId: orderId },
+      };
+    case 'Damaged':
+      return {
+        text: 'Mở trang Giám định & sửa chữa',
+        link: ['/repairs'],
+        query: { backOrderId: orderId },
+      };
+    case 'ContainerAbove':
+      return candidate.aboveContainerNumber
+        ? {
+            text: `Đảo chuyển ${candidate.aboveContainerNumber} ra chỗ khác`,
+            link: ['/yard'],
+            query: { container: candidate.aboveContainerNumber },
+          }
+        : { text: 'Mở trang Vị trí & đảo chuyển', link: ['/yard'], query: {} };
+    case 'NotInYard': {
+      // Feedback 26/10: damage or an open case goes to the repair page even when the container is outside
+      const caseId = candidate.repairCaseId ?? candidate.situation?.openRepairCaseId ?? null;
+      const facility =
+        candidate.situation?.outsideRepairStatus === 'GatedOut'
+          ? candidate.situation.outsideRepairFacility
+          : null;
+      if (caseId) {
+        return {
+          text: facility
+            ? `Mở hồ sơ sửa chữa (container đang ở ${facility})`
+            : 'Mở hồ sơ giám định/sửa chữa',
+          link: ['/repairs'],
+          query: { caseId, backOrderId: orderId },
+        };
+      }
+      if (candidate.condition === 'Damaged') {
+        return {
+          text: 'Mở trang Giám định & sửa chữa',
+          link: ['/repairs'],
+          query: { backOrderId: orderId },
+        };
+      }
+      // Clean and outside: it has to come back through the gate first
+      return {
+        text: 'Nhập bãi container này',
+        link: ['/gate-in'],
+        query: { container: candidate.containerNumber },
+      };
+    }
+  }
 }
 
 // Why a container left the yard: cấp rỗng under an order, or chuyển sửa ngoài
@@ -706,7 +842,12 @@ export interface VisitPosition {
   tier: number | null;
 }
 
-export type VisitDocumentKind = 'OperatingAssignment' | 'DeliveryOrder' | 'ExternalRepairOut' | 'ExternalRepairReturn' | 'RepairPhoto';
+export type VisitDocumentKind =
+  | 'OperatingAssignment'
+  | 'DeliveryOrder'
+  | 'ExternalRepairOut'
+  | 'ExternalRepairReturn'
+  | 'RepairPhoto';
 
 export const VISIT_DOCUMENT_KIND_LABEL: Record<VisitDocumentKind, string> = {
   OperatingAssignment: 'Căn cứ phân công khai thác',
@@ -747,7 +888,12 @@ export interface VisitHistoryDetail {
     firstFinding: string | null;
     photoCount: number;
   }[];
-  documents: { kind: VisitDocumentKind; reference: string | null; at: string | null; linkId: string | null }[];
+  documents: {
+    kind: VisitDocumentKind;
+    reference: string | null;
+    at: string | null;
+    linkId: string | null;
+  }[];
 }
 
 export type ContainerPresence = 'NeverIn' | 'InDepot' | 'AtOutsideRepair' | 'OutOfDepot';
@@ -782,7 +928,9 @@ export interface ContainerVisitSummary {
   Query string values without the empty ones (null, undefined, '' or blank text), so a filter left empty
   is not sent at all. Text is trimmed; numbers are kept, 0 included.
 */
-export function compactParams(values: Record<string, string | number | null | undefined>): Record<string, string | number> {
+export function compactParams(
+  values: Record<string, string | number | null | undefined>,
+): Record<string, string | number> {
   const params: Record<string, string | number> = {};
   for (const [key, value] of Object.entries(values)) {
     if (value === null || value === undefined) continue;
@@ -843,10 +991,15 @@ export function historyFilterFromParams(get: (key: string) => string | null): Vi
 }
 
 // "Cấp rỗng · DO-001" / "Chuyển sửa ngoài · Xưởng A"; "" while the visit is open
-export function exitText(row: Pick<VisitHistoryRow, 'exitPurpose' | 'deliveryOrderNumber' | 'repairFacility'>): string {
+export function exitText(
+  row: Pick<VisitHistoryRow, 'exitPurpose' | 'deliveryOrderNumber' | 'repairFacility'>,
+): string {
   if (!row.exitPurpose) return '';
-  const reference = row.exitPurpose === 'EmptyRelease' ? row.deliveryOrderNumber : row.repairFacility;
-  return reference ? `${GATE_OUT_PURPOSE_LABEL[row.exitPurpose]} · ${reference}` : GATE_OUT_PURPOSE_LABEL[row.exitPurpose];
+  const reference =
+    row.exitPurpose === 'EmptyRelease' ? row.deliveryOrderNumber : row.repairFacility;
+  return reference
+    ? `${GATE_OUT_PURPOSE_LABEL[row.exitPurpose]} · ${reference}`
+    : GATE_OUT_PURPOSE_LABEL[row.exitPurpose];
 }
 
 // ---------- catalog requests (Danh mục) ----------
@@ -921,7 +1074,15 @@ export interface CreateContainerRequest extends UpdateContainerRequest {
 }
 
 // The 7 container types of Appendix II, in the order of the API enum
-export const CATEGORIES: ContainerCategory[] = ['Dry', 'Reefer', 'OpenTop', 'FlatRack', 'Bunker', 'Ventilated', 'Specialized'];
+export const CATEGORIES: ContainerCategory[] = [
+  'Dry',
+  'Reefer',
+  'OpenTop',
+  'FlatRack',
+  'Bunker',
+  'Ventilated',
+  'Specialized',
+];
 
 // Both sizes, in the order of the API enum (filters and dropdowns)
 export const SIZES: ContainerSize[] = ['Ft20', 'Ft40'];
@@ -955,10 +1116,16 @@ export const CATEGORY_HINT: Record<ContainerCategory, string> = {
   Specialized: 'Container chuyên dụng',
 };
 
-export const CONDITION_LABEL: Record<ContainerCondition, string> = { Normal: 'Bình thường', Damaged: 'Hư hỏng' };
+export const CONDITION_LABEL: Record<ContainerCondition, string> = {
+  Normal: 'Bình thường',
+  Damaged: 'Hư hỏng',
+};
 
 // Same check as Block.CheckAccepts on the API: the block's list of types, never its name or description
-export function blockAccepts(block: Pick<Block, 'allowedCategories'>, category: ContainerCategory): boolean {
+export function blockAccepts(
+  block: Pick<Block, 'allowedCategories'>,
+  category: ContainerCategory,
+): boolean {
   return block.allowedCategories.includes(category);
 }
 
@@ -971,7 +1138,12 @@ export function categoriesText(categories: readonly ContainerCategory[]): string
 }
 
 // "A 04-1-1" for a physical block, just "WAIT" for a virtual block (same style as the mockups)
-export function formatPosition(blockCode: string, bay: number | null, row: number | null, tier: number | null): string {
+export function formatPosition(
+  blockCode: string,
+  bay: number | null,
+  row: number | null,
+  tier: number | null,
+): string {
   return bay === null ? blockCode : `${blockCode} ${String(bay).padStart(2, '0')}-${row}-${tier}`;
 }
 
@@ -1021,7 +1193,11 @@ export function daysInRange(from: string, to: string): number {
   Gate-in / gate-out totals per date for the chart, every date of the range included (a quiet day is a 0 bar,
   not a missing one). The API only returns dates that had a move, one row per line operator.
 */
-export function dailyTotals(from: string, to: string, rows: readonly DailyThroughput[]): { date: string; gateIn: number; gateOut: number }[] {
+export function dailyTotals(
+  from: string,
+  to: string,
+  rows: readonly DailyThroughput[],
+): { date: string; gateIn: number; gateOut: number }[] {
   return Array.from({ length: daysInRange(from, to) }, (_, i) => {
     const date = addDays(from, i);
     const day = rows.filter((r) => r.date === date);
@@ -1037,9 +1213,16 @@ export function dailyTotals(from: string, to: string, rows: readonly DailyThroug
   Status of a delivery order, computed by the API (feedback 6). Precedence: Cancelled, then Completed
   (every line fully released), then Expired, then NotStarted (nothing released) / InProgress.
 */
-export type DeliveryOrderStatus = 'NotStarted' | 'InProgress' | 'Completed' | 'Expired' | 'Cancelled';
+export type DeliveryOrderStatus =
+  'NotStarted' | 'InProgress' | 'Completed' | 'Expired' | 'Cancelled';
 
-export const DELIVERY_ORDER_STATUSES: DeliveryOrderStatus[] = ['NotStarted', 'InProgress', 'Completed', 'Expired', 'Cancelled'];
+export const DELIVERY_ORDER_STATUSES: DeliveryOrderStatus[] = [
+  'NotStarted',
+  'InProgress',
+  'Completed',
+  'Expired',
+  'Cancelled',
+];
 
 export const DELIVERY_ORDER_STATUS_LABEL: Record<DeliveryOrderStatus, string> = {
   NotStarted: 'Chưa giao',
@@ -1056,7 +1239,9 @@ export function orderLineLabel(line: Pick<DeliveryOrderLine, 'category' | 'size'
 
 // "Dry 20ft 0/2 · Reefer 40ft 1/1" = released / ordered per line, as in the order list
 export function releasedSummary(order: Pick<DeliveryOrder, 'lines'>): string {
-  return order.lines.map((l) => `${orderLineLabel(l)} ${l.releasedQuantity}/${l.quantity}`).join(' · ');
+  return order.lines
+    .map((l) => `${orderLineLabel(l)} ${l.releasedQuantity}/${l.quantity}`)
+    .join(' · ');
 }
 
 // Q7: an order can be cancelled only while nothing has been released under it
@@ -1310,7 +1495,8 @@ export function photoFileError(file: Pick<File, 'type' | 'size' | 'name'>): stri
   party) -> Approved / Rejected / ChangesRequested. The first approved version approves the repair
   (Chờ duyệt phương án -> Đã duyệt sửa). A new version starts as a copy of the latest one.
 */
-export type RepairEstimateStatus = 'Draft' | 'Submitted' | 'Approved' | 'Rejected' | 'ChangesRequested';
+export type RepairEstimateStatus =
+  'Draft' | 'Submitted' | 'Approved' | 'Rejected' | 'ChangesRequested';
 export type RepairEstimateDecision = 'Approve' | 'Reject' | 'RequestChanges';
 export type CostPayer = 'Undetermined' | 'LineOperator' | 'Owner' | 'Customer' | 'Depot' | 'Other';
 // Expected = proposed; Agreed = the party accepted; Disputed = the party contests it (reason required)
@@ -1346,7 +1532,14 @@ export const COST_PAYER_STATUS_LABEL: Record<CostPayerStatus, string> = {
 };
 
 export const ESTIMATE_DECISIONS: RepairEstimateDecision[] = ['Approve', 'RequestChanges', 'Reject'];
-export const COST_PAYERS: CostPayer[] = ['LineOperator', 'Owner', 'Customer', 'Depot', 'Other', 'Undetermined'];
+export const COST_PAYERS: CostPayer[] = [
+  'LineOperator',
+  'Owner',
+  'Customer',
+  'Depot',
+  'Other',
+  'Undetermined',
+];
 export const COST_PAYER_STATUSES: CostPayerStatus[] = ['Expected', 'Agreed', 'Disputed'];
 // Same list as the API validator (RepairEstimateRules.Currencies)
 export const ESTIMATE_CURRENCIES: readonly string[] = ['VND', 'USD'];
@@ -1437,7 +1630,10 @@ export interface LinePayerRequest {
 */
 export function formatMoney(amount: number, currency: string): string {
   const digits = currency === 'VND' ? 0 : 2;
-  const text = new Intl.NumberFormat('vi-VN', { minimumFractionDigits: 0, maximumFractionDigits: digits }).format(amount);
+  const text = new Intl.NumberFormat('vi-VN', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: digits,
+  }).format(amount);
   return `${text} ${currency}`;
 }
 

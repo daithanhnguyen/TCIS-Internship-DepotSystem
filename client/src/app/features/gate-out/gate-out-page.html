@@ -8,258 +8,391 @@
 
   <!-- Feedback 4 / 6: cấp rỗng under an order, or chuyển sửa ngoài without an order -->
   <div class="tabs" role="tablist" aria-label="Loại xuất bãi">
-    <button type="button" role="tab" class="tab" [class.active]="tab() === 'release'" [attr.aria-selected]="tab() === 'release'" (click)="showTab('release')">
+    <button
+      type="button"
+      role="tab"
+      class="tab"
+      [class.active]="tab() === 'release'"
+      [attr.aria-selected]="tab() === 'release'"
+      (click)="showTab('release')"
+    >
       Cấp rỗng theo lệnh
     </button>
-    <button type="button" role="tab" class="tab" [class.active]="tab() === 'repair'" [attr.aria-selected]="tab() === 'repair'" (click)="showTab('repair')">
+    <button
+      type="button"
+      role="tab"
+      class="tab"
+      [class.active]="tab() === 'repair'"
+      [attr.aria-selected]="tab() === 'repair'"
+      (click)="showTab('repair')"
+    >
       Chuyển sửa ngoài
     </button>
   </div>
 
   @if (tab() === 'release') {
-  <div class="layout">
-    <!-- ================= Form: order first, then a container of the order ================= -->
-    <form class="card form" [formGroup]="form" (ngSubmit)="submit()" novalidate aria-labelledby="form-title">
-      <h2 id="form-title">Giao container theo lệnh</h2>
+    <div class="layout">
+      <!-- ================= Form: order first, then a container of the order ================= -->
+      <form
+        class="card form"
+        [formGroup]="form"
+        (ngSubmit)="submit()"
+        novalidate
+        aria-labelledby="form-title"
+      >
+        <h2 id="form-title">Giao container theo lệnh</h2>
 
-      <div class="field" [class.has-error]="invalid('order') || !!orderError()">
-        <label for="order">Lệnh giao <span class="muted label-note">(chỉ lệnh chưa giao / đang giao, còn hạn)</span></label>
-        <app-search-select
-          formControlName="order"
-          inputId="order"
-          placeholder="Gõ số lệnh hoặc tên khách hàng"
-          [load]="loadOrders"
-          [itemKey]="orderKey"
-          [itemLabel]="orderLabel"
-          [itemDetail]="orderDetail"
-          [invalid]="invalid('order')"
-        />
-        @if (orderError(); as message) {
-        <span class="field-error">{{ message }}</span>
-        } @else if (invalid('order')) {
-        <span class="field-error">Chọn lệnh giao. <a routerLink="/delivery-orders">Tạo lệnh giao</a></span>
-        }
-        @if (order(); as o) {
-        <span class="muted hint">{{ o.lineOperatorCode }} · {{ o.customerName }} · hạn {{ formatDate(o.expiryDate) }} · {{ remainingSummary(o) }}</span>
-        }
-      </div>
-
-      <div class="field" [class.has-error]="invalid('container')">
-        <label for="container">
-          Container
+        <div class="field" [class.has-error]="invalid('order') || !!orderError()">
+          <label for="order"
+            >Lệnh giao
+            <span class="muted label-note">(chỉ lệnh chưa giao / đang giao, còn hạn)</span></label
+          >
+          <app-search-select
+            formControlName="order"
+            inputId="order"
+            placeholder="Gõ số lệnh hoặc tên khách hàng"
+            [load]="loadOrders"
+            [itemKey]="orderKey"
+            [itemLabel]="orderLabel"
+            [itemDetail]="orderDetail"
+            [invalid]="invalid('order')"
+          />
+          @if (orderError(); as message) {
+            <span class="field-error">{{ message }}</span>
+          } @else if (invalid('order')) {
+            <span class="field-error"
+              >Chọn lệnh giao. <a routerLink="/delivery-orders">Tạo lệnh giao</a></span
+            >
+          }
           @if (order(); as o) {
-          <span class="muted label-note">(của {{ o.lineOperatorCode }}, đúng loại và kích thước lệnh còn cần)</span>
+            <span class="muted hint"
+              >{{ o.lineOperatorCode }} · {{ o.customerName }} · hạn
+              {{ formatDate(o.expiryDate) }} · {{ remainingSummary(o) }}</span
+            >
           }
-        </label>
-        <app-search-select
-          formControlName="container"
-          inputId="container"
-          [placeholder]="order() ? 'Gõ số container, VD: MSCU1234566' : 'Chọn lệnh giao trước'"
-          [load]="loadCandidates"
-          [itemKey]="candidateKey"
-          [itemLabel]="candidateLabel"
-          [itemDetail]="candidateDetail"
-          [resetKey]="candidateResetKey()"
-          [invalid]="invalid('container')"
-        />
-        @if (invalid('container')) {
-        <span class="field-error">Chọn container cần xuất.</span>
-        }
-        @if (candidate(); as c) {
-        <span class="muted hint">
-          {{ c.isoCode }} · {{ sizeLabel[c.size] }} {{ categoryLabel[c.category] }} · {{ positionText(c) }} · {{ conditionLabel[c.condition] }}
-        </span>
-        }
-      </div>
+        </div>
 
-      <div class="field" [class.has-error]="invalid('vehicleNo')">
-        <label for="vehicleNo">Biển số xe ra</label>
-        <input id="vehicleNo" class="mono plate" formControlName="vehicleNo" placeholder="VD: 51C-99999" maxlength="20" />
-        @if (invalid('vehicleNo')) {
-        <span class="field-error">Nhập biển số xe (tối đa 20 ký tự).</span>
+        <div class="field" [class.has-error]="invalid('container')">
+          <label for="container">
+            Container
+            @if (order(); as o) {
+              <span class="muted label-note"
+                >(container của lệnh {{ o.orderNumber }}; container xuất được ở đầu danh sách)</span
+              >
+            }
+          </label>
+          <app-search-select
+            formControlName="container"
+            inputId="container"
+            [placeholder]="order() ? 'Gõ số container, VD: MSCU1234566' : 'Chọn lệnh giao trước'"
+            [load]="loadCandidates"
+            [itemKey]="candidateKey"
+            [itemLabel]="candidateLabel"
+            [itemDetail]="candidateDetail"
+            [itemBadge]="candidateBadge"
+            [itemNote]="candidateNote"
+            [resetKey]="candidateResetKey()"
+            [invalid]="invalid('container')"
+          />
+          @if (invalid('container')) {
+            <span class="field-error">Chọn container cần xuất.</span>
+          }
+          @if (candidate(); as c) {
+            <span class="muted hint">
+              {{ c.isoCode }} · {{ sizeLabel[c.size] }} {{ categoryLabel[c.category] }} ·
+              {{ positionText(c) }} · {{ conditionLabel[c.condition] }}
+            </span>
+            <!-- Feedback 26/10: not available yet -> the screen that resolves it -->
+            @if (resolution(); as r) {
+              <div class="alert alert-amber resolution" role="status">
+                Chưa xuất được: {{ c.blockReason ? blockLabel[c.blockReason] : '' }}.
+                <a [routerLink]="r.link" [queryParams]="r.query">{{ r.text }}</a>
+              </div>
+            }
+          }
+        </div>
+
+        <div class="field" [class.has-error]="invalid('vehicleNo')">
+          <label for="vehicleNo">Biển số xe ra</label>
+          <input
+            id="vehicleNo"
+            class="mono plate"
+            formControlName="vehicleNo"
+            placeholder="VD: 51C-99999"
+            maxlength="20"
+          />
+          @if (invalid('vehicleNo')) {
+            <span class="field-error">Nhập biển số xe (tối đa 20 ký tự).</span>
+          }
+        </div>
+
+        @if (apiError(); as error) {
+          <div class="alert alert-red" role="alert">
+            <strong>Không xuất được ({{ error.status }}):</strong> {{ error.message }}
+            @if (error.detail && error.detail !== error.message) {
+              <div class="detail">{{ error.detail }}</div>
+            }
+          </div>
         }
-      </div>
 
-      @if (apiError(); as error) {
-      <div class="alert alert-red" role="alert">
-        <strong>Không xuất được ({{ error.status }}):</strong> {{ error.message }}
-        @if (error.detail && error.detail !== error.message) {
-        <div class="detail">{{ error.detail }}</div>
+        <div class="actions">
+          <button
+            class="btn btn-primary"
+            type="submit"
+            [disabled]="submitting() || (!!candidate() && !canGateOut())"
+          >
+            {{ submitting() ? 'Đang xuất…' : 'Xuất bãi' }}
+          </button>
+          <button class="btn btn-secondary" type="button" (click)="resetForNext()">Làm lại</button>
+        </div>
+      </form>
+
+      <!-- ================= Checks ================= -->
+      <section class="card" aria-labelledby="checks-title">
+        <h2 id="checks-title">Kiểm tra trước khi xuất</h2>
+        @if (checks().length === 0) {
+          <p class="muted">Chọn lệnh giao để xem các container của lệnh và điều kiện xuất bãi.</p>
+        } @else {
+          <ul class="checks">
+            @for (check of checks(); track check.title) {
+              <li [class]="check.state">
+                @switch (check.state) {
+                  @case ('ok') {
+                    <svg
+                      width="20"
+                      height="20"
+                      viewBox="0 0 20 20"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      role="img"
+                      aria-label="Đạt"
+                    >
+                      <circle cx="10" cy="10" r="8.5"></circle>
+                      <path d="m6 10 3 3 5-6"></path>
+                    </svg>
+                  }
+                  @case ('fail') {
+                    <svg
+                      width="20"
+                      height="20"
+                      viewBox="0 0 20 20"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      role="img"
+                      aria-label="Không đạt"
+                    >
+                      <circle cx="10" cy="10" r="8.5"></circle>
+                      <path d="m7 7 6 6M13 7l-6 6"></path>
+                    </svg>
+                  }
+                  @default {
+                    <svg
+                      width="20"
+                      height="20"
+                      viewBox="0 0 20 20"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      role="img"
+                      aria-label="Chưa kiểm tra"
+                    >
+                      <circle cx="10" cy="10" r="8.5" stroke-dasharray="3 3"></circle>
+                    </svg>
+                  }
+                }
+                <span class="check-text">
+                  <span class="check-title">{{ check.title }}</span>
+                  <span class="check-detail">{{ check.detail }}</span>
+                </span>
+              </li>
+            }
+          </ul>
         }
-      </div>
-      }
-
-      <div class="actions">
-        <button class="btn btn-primary" type="submit" [disabled]="submitting() || (!!candidate() && !canGateOut())">
-          {{ submitting() ? 'Đang xuất…' : 'Xuất bãi' }}
-        </button>
-        <button class="btn btn-secondary" type="button" (click)="resetForNext()">Làm lại</button>
-      </div>
-    </form>
-
-    <!-- ================= Checks ================= -->
-    <section class="card" aria-labelledby="checks-title">
-      <h2 id="checks-title">Kiểm tra trước khi xuất</h2>
-      @if (checks().length === 0) {
-      <p class="muted">Chọn lệnh giao để xem các container của lệnh và điều kiện xuất bãi.</p>
-      } @else {
-      <ul class="checks">
-        @for (check of checks(); track check.title) {
-        <li [class]="check.state">
-          @switch (check.state) {
-          @case ('ok') {
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" role="img" aria-label="Đạt">
-            <circle cx="10" cy="10" r="8.5"></circle>
-            <path d="m6 10 3 3 5-6"></path>
-          </svg>
-          }
-          @case ('fail') {
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" role="img" aria-label="Không đạt">
-            <circle cx="10" cy="10" r="8.5"></circle>
-            <path d="m7 7 6 6M13 7l-6 6"></path>
-          </svg>
-          }
-          @default {
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" role="img" aria-label="Chưa kiểm tra">
-            <circle cx="10" cy="10" r="8.5" stroke-dasharray="3 3"></circle>
-          </svg>
-          }
-          }
-          <span class="check-text">
-            <span class="check-title">{{ check.title }}</span>
-            <span class="check-detail">{{ check.detail }}</span>
-          </span>
-        </li>
-        }
-      </ul>
-      }
-    </section>
-  </div>
-
-  <!-- ================= Repair (feedback 4) ================= -->
-  @if (candidate(); as c) {
-  <section class="card condition" [class.damaged]="c.blockReason === 'RepairCase'" aria-labelledby="condition-title">
-    <div class="condition-head">
-      @if (c.blockReason === 'RepairCase') {
-      <span class="chip chip-red">{{ c.repairStatus ? repairStatusLabel[c.repairStatus] : 'Chưa đạt' }}</span>
-      } @else {
-      <span class="chip" [class.chip-red]="c.condition === 'Damaged'" [class.chip-green]="c.condition === 'Normal'">
-        {{ conditionLabel[c.condition] }}
-      </span>
-      }
-      <div>
-        <h2 id="condition-title">
-          Giám định <span class="mono">{{ c.containerNumber }}</span>
-          @if (c.blockReason === 'RepairCase') { · không thể xuất bãi }
-        </h2>
-        <p class="muted">
-          @if (c.blockReason === 'RepairCase' && c.repairCaseId) {
-          Container có hồ sơ giám định/sửa chữa chưa đạt.
-          <a [routerLink]="['/repairs']" [queryParams]="{ caseId: c.repairCaseId, backOrderId: order()?.id }">Mở hồ sơ</a>
-          để giám định, sửa và nghiệm thu; trang hồ sơ có nút quay lại lệnh này.
-          } @else {
-          Phát hiện hư hỏng khi kiểm tra trước khi giao? Ghi nhận bên dưới: container sẽ có hồ sơ giám định và chưa được xuất cho đến khi đạt.
-          }
-        </p>
-      </div>
+      </section>
     </div>
 
-    <form class="condition-fields" [formGroup]="damageForm" (ngSubmit)="reportDamage()" novalidate>
-      <div class="field note" [class.has-error]="damageForm.controls.description.invalid && damageForm.controls.description.touched">
-        <label for="damageDescription">
-          {{ c.blockReason === 'RepairCase' ? 'Thêm hư hỏng vào hồ sơ' : 'Mô tả hư hỏng' }} <span class="muted label-note">(móp, méo, cong, thủng…)</span>
-        </label>
-        <input id="damageDescription" formControlName="description" maxlength="500" placeholder="VD: Móp cửa phải" />
-      </div>
-      <button class="btn btn-dark" type="submit" [disabled]="reporting()">
-        {{ reporting() ? 'Đang lưu…' : 'Báo hư' }}
-      </button>
-    </form>
+    <!-- ================= Repair (feedback 4) ================= -->
+    <!-- Damage can only be reported here for a container in the yard -->
+    @if (candidate(); as c) {
+      @if (c.blockReason !== 'NotInYard') {
+        <section
+          class="card condition"
+          [class.damaged]="c.blockReason === 'RepairCase'"
+          aria-labelledby="condition-title"
+        >
+          <div class="condition-head">
+            @if (c.blockReason === 'RepairCase') {
+              <span class="chip chip-red">{{
+                c.repairStatus ? repairStatusLabel[c.repairStatus] : 'Chưa đạt'
+              }}</span>
+            } @else {
+              <span
+                class="chip"
+                [class.chip-red]="c.condition === 'Damaged'"
+                [class.chip-green]="c.condition === 'Normal'"
+              >
+                {{ conditionLabel[c.condition] }}
+              </span>
+            }
+            <div>
+              <h2 id="condition-title">
+                Giám định <span class="mono">{{ c.containerNumber }}</span>
+                @if (c.blockReason === 'RepairCase') {
+                  · không thể xuất bãi
+                }
+              </h2>
+              <p class="muted">
+                @if (c.blockReason === 'RepairCase' && c.repairCaseId) {
+                  Container có hồ sơ giám định/sửa chữa chưa đạt.
+                  <a
+                    [routerLink]="['/repairs']"
+                    [queryParams]="{ caseId: c.repairCaseId, backOrderId: order()?.id }"
+                    >Mở hồ sơ</a
+                  >
+                  để giám định, sửa và nghiệm thu; trang hồ sơ có nút quay lại lệnh này.
+                } @else {
+                  Phát hiện hư hỏng khi kiểm tra trước khi giao? Ghi nhận bên dưới: container sẽ có
+                  hồ sơ giám định và chưa được xuất cho đến khi đạt.
+                }
+              </p>
+            </div>
+          </div>
 
-    @if (reportError(); as error) {
-    <div class="alert alert-red" role="alert"><strong>Không ghi nhận được ({{ error.status }}):</strong> {{ error.message }}</div>
+          <form
+            class="condition-fields"
+            [formGroup]="damageForm"
+            (ngSubmit)="reportDamage()"
+            novalidate
+          >
+            <div
+              class="field note"
+              [class.has-error]="
+                damageForm.controls.description.invalid && damageForm.controls.description.touched
+              "
+            >
+              <label for="damageDescription">
+                {{ c.blockReason === 'RepairCase' ? 'Thêm hư hỏng vào hồ sơ' : 'Mô tả hư hỏng' }}
+                <span class="muted label-note">(móp, méo, cong, thủng…)</span>
+              </label>
+              <input
+                id="damageDescription"
+                formControlName="description"
+                maxlength="500"
+                placeholder="VD: Móp cửa phải"
+              />
+            </div>
+            <button class="btn btn-dark" type="submit" [disabled]="reporting()">
+              {{ reporting() ? 'Đang lưu…' : 'Báo hư' }}
+            </button>
+          </form>
+
+          @if (reportError(); as error) {
+            <div class="alert alert-red" role="alert">
+              <strong>Không ghi nhận được ({{ error.status }}):</strong> {{ error.message }}
+            </div>
+          }
+        </section>
+      }
     }
-  </section>
-  }
   } @else {
-  <!-- ================= Outside repair (feedback 4) ================= -->
-  <div class="layout">
-    <form class="card form" [formGroup]="repairForm" (ngSubmit)="submitRepair()" novalidate aria-labelledby="repair-title">
-      <h2 id="repair-title">Xuất container đi sửa ngoài</h2>
-      <p class="muted">
-        Chỉ các container đã có yêu cầu sửa ngoài ở màn <a routerLink="/repairs">Giám định &amp; sửa chữa</a>.
-        Không dùng lệnh giao, hồ sơ sửa chữa vẫn mở cho đến khi container về bãi và nghiệm thu đạt.
-      </p>
+    <!-- ================= Outside repair (feedback 4) ================= -->
+    <div class="layout">
+      <form
+        class="card form"
+        [formGroup]="repairForm"
+        (ngSubmit)="submitRepair()"
+        novalidate
+        aria-labelledby="repair-title"
+      >
+        <h2 id="repair-title">Xuất container đi sửa ngoài</h2>
+        <p class="muted">
+          Chỉ các container đã có yêu cầu sửa ngoài ở màn
+          <a routerLink="/repairs">Giám định &amp; sửa chữa</a>. Không dùng lệnh giao, hồ sơ sửa
+          chữa vẫn mở cho đến khi container về bãi và nghiệm thu đạt.
+        </p>
 
-      <div class="field" [class.has-error]="repairInvalid('transfer')">
-        <label for="transfer">Container chờ xuất đi sửa</label>
-        <app-search-select
-          formControlName="transfer"
-          inputId="transfer"
-          placeholder="Gõ số container"
-          [load]="loadTransfers"
-          [itemKey]="transferKey"
-          [itemLabel]="transferLabel"
-          [itemDetail]="transferDetail"
-          [resetKey]="transferResetKey()"
-          [invalid]="repairInvalid('transfer')"
-        />
-        @if (repairInvalid('transfer')) {
-        <span class="field-error">Chọn container cần xuất đi sửa.</span>
+        <div class="field" [class.has-error]="repairInvalid('transfer')">
+          <label for="transfer">Container chờ xuất đi sửa</label>
+          <app-search-select
+            formControlName="transfer"
+            inputId="transfer"
+            placeholder="Gõ số container"
+            [load]="loadTransfers"
+            [itemKey]="transferKey"
+            [itemLabel]="transferLabel"
+            [itemDetail]="transferDetail"
+            [resetKey]="transferResetKey()"
+            [invalid]="repairInvalid('transfer')"
+          />
+          @if (repairInvalid('transfer')) {
+            <span class="field-error">Chọn container cần xuất đi sửa.</span>
+          }
+        </div>
+
+        <div class="field" [class.has-error]="repairInvalid('vehicleNo')">
+          <label for="repairVehicleNo">Biển số xe ra</label>
+          <input
+            id="repairVehicleNo"
+            class="mono plate"
+            formControlName="vehicleNo"
+            placeholder="VD: 51C-99999"
+            maxlength="20"
+          />
+          @if (repairInvalid('vehicleNo')) {
+            <span class="field-error">Nhập biển số xe (tối đa 20 ký tự).</span>
+          }
+        </div>
+
+        @if (repairError(); as error) {
+          <div class="alert alert-red" role="alert">
+            <strong>Không xuất được ({{ error.status }}):</strong> {{ error.message }}
+            @if (error.detail && error.detail !== error.message) {
+              <div class="detail">{{ error.detail }}</div>
+            }
+          </div>
         }
-      </div>
 
-      <div class="field" [class.has-error]="repairInvalid('vehicleNo')">
-        <label for="repairVehicleNo">Biển số xe ra</label>
-        <input id="repairVehicleNo" class="mono plate" formControlName="vehicleNo" placeholder="VD: 51C-99999" maxlength="20" />
-        @if (repairInvalid('vehicleNo')) {
-        <span class="field-error">Nhập biển số xe (tối đa 20 ký tự).</span>
+        <div class="actions">
+          <button class="btn btn-primary" type="submit" [disabled]="submitting()">
+            {{ submitting() ? 'Đang xuất…' : 'Xuất đi sửa' }}
+          </button>
+        </div>
+      </form>
+
+      <section class="card" aria-labelledby="transfer-title">
+        <h2 id="transfer-title">Yêu cầu sửa ngoài</h2>
+        @if (transfer(); as t) {
+          <dl class="facts">
+            <dt>Container</dt>
+            <dd>
+              <span class="mono">{{ t.containerNumber }}</span> · {{ t.isoCode }} ·
+              {{ sizeLabel[t.size] }} {{ categoryLabel[t.category] }}
+            </dd>
+            <dt>Vị trí</dt>
+            <dd>{{ positionText(t) }}</dd>
+            <dt>Nơi sửa</dt>
+            <dd>{{ t.facility }}</dd>
+            <dt>Lý do</dt>
+            <dd>{{ t.reason }}</dd>
+            <dt>Số phê duyệt</dt>
+            <dd class="mono">{{ t.reference }}</dd>
+            <dt>Yêu cầu lúc</dt>
+            <dd>
+              {{ formatDateTime(t.requestedAt) }}{{ t.requestedBy ? ' · ' + t.requestedBy : '' }}
+            </dd>
+            <dt>Hồ sơ</dt>
+            <dd>
+              {{ repairStatusLabel[t.caseStatus] }} ·
+              <a [routerLink]="['/repairs']" [queryParams]="{ caseId: t.repairCaseId }">Mở hồ sơ</a>
+            </dd>
+          </dl>
+        } @else {
+          <p class="muted">Chọn container để xem yêu cầu sửa ngoài.</p>
         }
-      </div>
-
-      @if (repairError(); as error) {
-      <div class="alert alert-red" role="alert">
-        <strong>Không xuất được ({{ error.status }}):</strong> {{ error.message }}
-        @if (error.detail && error.detail !== error.message) {
-        <div class="detail">{{ error.detail }}</div>
-        }
-      </div>
-      }
-
-      <div class="actions">
-        <button class="btn btn-primary" type="submit" [disabled]="submitting()">
-          {{ submitting() ? 'Đang xuất…' : 'Xuất đi sửa' }}
-        </button>
-      </div>
-    </form>
-
-    <section class="card" aria-labelledby="transfer-title">
-      <h2 id="transfer-title">Yêu cầu sửa ngoài</h2>
-      @if (transfer(); as t) {
-      <dl class="facts">
-        <dt>Container</dt>
-        <dd><span class="mono">{{ t.containerNumber }}</span> · {{ t.isoCode }} · {{ sizeLabel[t.size] }} {{ categoryLabel[t.category] }}</dd>
-        <dt>Vị trí</dt>
-        <dd>{{ positionText(t) }}</dd>
-        <dt>Nơi sửa</dt>
-        <dd>{{ t.facility }}</dd>
-        <dt>Lý do</dt>
-        <dd>{{ t.reason }}</dd>
-        <dt>Số phê duyệt</dt>
-        <dd class="mono">{{ t.reference }}</dd>
-        <dt>Yêu cầu lúc</dt>
-        <dd>{{ formatDateTime(t.requestedAt) }}{{ t.requestedBy ? ' · ' + t.requestedBy : '' }}</dd>
-        <dt>Hồ sơ</dt>
-        <dd>
-          {{ repairStatusLabel[t.caseStatus] }} ·
-          <a [routerLink]="['/repairs']" [queryParams]="{ caseId: t.repairCaseId }">Mở hồ sơ</a>
-        </dd>
-      </dl>
-      } @else {
-      <p class="muted">Chọn container để xem yêu cầu sửa ngoài.</p>
-      }
-    </section>
-  </div>
+      </section>
+    </div>
   }
 
   <!-- ================= Today ================= -->
@@ -270,38 +403,40 @@
     </div>
 
     @if (todayGateOuts().length === 0) {
-    <p class="empty muted">Chưa có container nào ra bãi hôm nay.</p>
+      <p class="empty muted">Chưa có container nào ra bãi hôm nay.</p>
     } @else {
-    <div class="table-wrap">
-      <table class="table today">
-        <thead>
-          <tr>
-            <th>Giờ ra</th>
-            <th>Số container</th>
-            <th>Loại</th>
-            <th>Hãng</th>
-            <th>Mục đích</th>
-            <th>Lệnh giao</th>
-            <th>Còn lại trên lệnh / nơi sửa</th>
-            <th>Xe ra</th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (row of todayGateOuts(); track row.visitId) {
-          <tr>
-            <td>{{ row.gateOutAt | date: 'HH:mm' : '+0700' }}</td>
-            <td class="mono">{{ row.containerNumber }}</td>
-            <td>{{ row.isoCode }} · {{ sizeLabel[row.size] }} {{ categoryLabel[row.category] }}</td>
-            <td>{{ row.lineOperatorCode }}</td>
-            <td>{{ row.exitPurpose ? purposeLabel[row.exitPurpose] : '—' }}</td>
-            <td class="mono">{{ row.deliveryOrderNumber ?? '—' }}</td>
-            <td>{{ remainingText(row) }}</td>
-            <td class="mono">{{ row.vehicleNo ?? '—' }}</td>
-          </tr>
-          }
-        </tbody>
-      </table>
-    </div>
+      <div class="table-wrap">
+        <table class="table today">
+          <thead>
+            <tr>
+              <th>Giờ ra</th>
+              <th>Số container</th>
+              <th>Loại</th>
+              <th>Hãng</th>
+              <th>Mục đích</th>
+              <th>Lệnh giao</th>
+              <th>Còn lại trên lệnh / nơi sửa</th>
+              <th>Xe ra</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of todayGateOuts(); track row.visitId) {
+              <tr>
+                <td>{{ row.gateOutAt | date: 'HH:mm' : '+0700' }}</td>
+                <td class="mono">{{ row.containerNumber }}</td>
+                <td>
+                  {{ row.isoCode }} · {{ sizeLabel[row.size] }} {{ categoryLabel[row.category] }}
+                </td>
+                <td>{{ row.lineOperatorCode }}</td>
+                <td>{{ row.exitPurpose ? purposeLabel[row.exitPurpose] : '—' }}</td>
+                <td class="mono">{{ row.deliveryOrderNumber ?? '—' }}</td>
+                <td>{{ remainingText(row) }}</td>
+                <td class="mono">{{ row.vehicleNo ?? '—' }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
     }
   </section>
 </div>

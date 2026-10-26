@@ -20,7 +20,10 @@ import {
   formatDate,
   formatDateTime,
   formatPosition,
+  gateOutBadge,
+  gateOutResolution,
   orderLineLabel,
+  situationText,
 } from '../../core/depot/depot-models';
 import { RepairApi } from '../../core/depot/repair-api';
 import { YardApi } from '../../core/depot/yard-api';
@@ -41,8 +44,15 @@ export type GateOutTab = 'release' | 'repair';
 const SEARCH_PAGE_SIZE = 20;
 
 // The order line a container uses: same type, and same size (or a line without size, from before Q1)
-export function lineFor(order: Pick<DeliveryOrder, 'lines'>, candidate: Pick<GateOutCandidate, 'category' | 'size'>) {
-  return order.lines.find((l) => l.category === candidate.category && (l.size === null || l.size === candidate.size)) ?? null;
+export function lineFor(
+  order: Pick<DeliveryOrder, 'lines'>,
+  candidate: Pick<GateOutCandidate, 'category' | 'size'>,
+) {
+  return (
+    order.lines.find(
+      (l) => l.category === candidate.category && (l.size === null || l.size === candidate.size),
+    ) ?? null
+  );
 }
 
 // "Dry 20ft còn 2/3 · Reefer 40ft còn 1/1": what the order still needs
@@ -112,7 +122,12 @@ export class GateOutPage {
   protected readonly loadOrders: SearchPageLoader<DeliveryOrder> = (term, page) =>
     this.orderApi.list(page, SEARCH_PAGE_SIZE, { search: term, usable: true });
   protected readonly loadCandidates: SearchPageLoader<GateOutCandidate> = (term, page) =>
-    this.yard.gateOutCandidates(this.form.controls.order.value?.id ?? '', term, page, SEARCH_PAGE_SIZE);
+    this.yard.gateOutCandidates(
+      this.form.controls.order.value?.id ?? '',
+      term,
+      page,
+      SEARCH_PAGE_SIZE,
+    );
   protected readonly loadTransfers: SearchPageLoader<ExternalRepair> = (term, page) =>
     this.repairs.externalRepairs('Requested', term, page, SEARCH_PAGE_SIZE);
 
@@ -120,11 +135,13 @@ export class GateOutPage {
   protected readonly orderLabel = (o: DeliveryOrder) => o.orderNumber;
   protected readonly orderDetail = (o: DeliveryOrder) =>
     `${o.lineOperatorCode} · ${o.customerName} · hạn ${formatDate(o.expiryDate)} · ${remainingSummary(o)}`;
-  protected readonly candidateKey = (c: GateOutCandidate) => c.visitId;
+  // Feedback 26/10: rows look like the gate-in dropdown (type line, chip, "where is it" line)
+  protected readonly candidateKey = (c: GateOutCandidate) => c.containerId;
   protected readonly candidateLabel = (c: GateOutCandidate) => c.containerNumber;
   protected readonly candidateDetail = (c: GateOutCandidate) =>
-    `${SIZE_LABEL[c.size]} ${CATEGORY_LABEL[c.category]} · ${formatPosition(c.blockCode, c.bay, c.row, c.tier)} · ` +
-    (c.blockReason ? `Chưa xuất được: ${GATE_OUT_BLOCK_LABEL[c.blockReason]}` : 'Xuất được');
+    `${c.isoCode} · ${SIZE_LABEL[c.size]} · ${CATEGORY_LABEL[c.category]} · ${CONDITION_LABEL[c.condition]}`;
+  protected readonly candidateBadge = gateOutBadge;
+  protected readonly candidateNote = (c: GateOutCandidate) => situationText(c.situation);
   protected readonly transferKey = (t: ExternalRepair) => t.id;
   protected readonly transferLabel = (t: ExternalRepair) => t.containerNumber;
   protected readonly transferDetail = (t: ExternalRepair) =>
@@ -165,7 +182,9 @@ export class GateOutPage {
   protected readonly transfer = computed(() => this.repairValue().transfer);
 
   // A new order (or a release) drops the picked container and the old results
-  protected readonly candidateResetKey = computed(() => `${this.order()?.id ?? ''}|${this.releases()}`);
+  protected readonly candidateResetKey = computed(
+    () => `${this.order()?.id ?? ''}|${this.releases()}`,
+  );
   protected readonly transferResetKey = computed(() => this.repairExits());
 
   // Same order of rules as GateOutCommandHandler, with what was found for the picked container
@@ -182,22 +201,33 @@ export class GateOutPage {
         state: 'ok',
       },
       candidate
-        ? {
+        ? this.inYardCheck(candidate)
+        : {
             title: 'Container của lệnh, đang ở trong bãi',
-            detail: `${SIZE_LABEL[candidate.size]} ${CATEGORY_LABEL[candidate.category]} · ${this.positionText(candidate)} · vào ${formatDateTime(candidate.gateInAt)}`,
-            state: 'ok',
-          }
-        : { title: 'Container của lệnh, đang ở trong bãi', detail: 'Chọn container', state: 'pending' },
-      candidate ? this.aboveCheck(candidate) : { title: 'Không bị container khác đè lên', detail: 'Chọn container', state: 'pending' },
-      candidate ? this.repairCheck(candidate) : { title: 'Không có hồ sơ sửa chữa đang mở', detail: 'Chọn container', state: 'pending' },
-      line
-        ? {
-            title: `Lệnh còn số lượng cho ${orderLineLabel(line)}`,
-            detail: `Còn ${line.remainingQuantity}/${line.quantity}, sau khi xuất còn ${line.remainingQuantity - 1}`,
-            state: line.remainingQuantity > 0 ? 'ok' : 'fail',
-          }
-        : { title: 'Lệnh còn số lượng cho loại container', detail: 'Chọn container', state: 'pending' },
+            detail: 'Chọn container',
+            state: 'pending',
+          },
+      candidate
+        ? this.aboveCheck(candidate)
+        : { title: 'Không bị container khác đè lên', detail: 'Chọn container', state: 'pending' },
+      candidate
+        ? this.repairCheck(candidate)
+        : { title: 'Không có hồ sơ sửa chữa đang mở', detail: 'Chọn container', state: 'pending' },
+      candidate
+        ? this.lineCheck(candidate, line)
+        : {
+            title: 'Lệnh còn số lượng cho loại container',
+            detail: 'Chọn container',
+            state: 'pending',
+          },
     ];
+  });
+
+  // Feedback 26/10: link to the screen that makes the picked container available (null = it can leave)
+  protected readonly resolution = computed(() => {
+    const order = this.order();
+    const candidate = this.candidate();
+    return order && candidate ? gateOutResolution(candidate, order.id) : null;
   });
 
   protected readonly canGateOut = computed(() => {
@@ -243,12 +273,16 @@ export class GateOutPage {
 
     this.submitting.set(true);
     this.yard
-      .gateOut({ containerId: candidate.containerId, deliveryOrderId: order.id, vehicleNo: this.form.controls.vehicleNo.value.trim() })
+      .gateOut({
+        containerId: candidate.containerId,
+        deliveryOrderId: order.id,
+        vehicleNo: this.form.controls.vehicleNo.value.trim(),
+      })
       .subscribe({
         next: (result) => {
           this.toast.success(
             `Đã xuất ${result.containerNumber} theo lệnh ${result.orderNumber} · ` +
-            `${CATEGORY_LABEL[result.category]} ${SIZE_LABEL[result.size]} còn ${result.remainingQuantity}`,
+              `${CATEGORY_LABEL[result.category]} ${SIZE_LABEL[result.size]} còn ${result.remainingQuantity}`,
           );
           this.submitting.set(false);
           this.afterRelease(order.id);
@@ -270,20 +304,25 @@ export class GateOutPage {
     if (!transfer || this.repairForm.invalid) return;
 
     this.submitting.set(true);
-    this.yard.gateOutForRepair({ transferId: transfer.id, vehicleNo: this.repairForm.controls.vehicleNo.value.trim() }).subscribe({
-      next: (result) => {
-        this.toast.success(`Đã xuất ${result.containerNumber} đi sửa tại ${result.facility}`);
-        this.submitting.set(false);
-        this.repairForm.reset();
-        this.repairSubmitted.set(false);
-        this.repairExits.update((n) => n + 1);
-        this.loadToday();
-      },
-      error: (err: unknown) => {
-        this.repairError.set(toApiError(err));
-        this.submitting.set(false);
-      },
-    });
+    this.yard
+      .gateOutForRepair({
+        transferId: transfer.id,
+        vehicleNo: this.repairForm.controls.vehicleNo.value.trim(),
+      })
+      .subscribe({
+        next: (result) => {
+          this.toast.success(`Đã xuất ${result.containerNumber} đi sửa tại ${result.facility}`);
+          this.submitting.set(false);
+          this.repairForm.reset();
+          this.repairSubmitted.set(false);
+          this.repairExits.update((n) => n + 1);
+          this.loadToday();
+        },
+        error: (err: unknown) => {
+          this.repairError.set(toApiError(err));
+          this.submitting.set(false);
+        },
+      });
   }
 
   /*
@@ -298,10 +337,16 @@ export class GateOutPage {
     this.reporting.set(true);
     this.reportError.set(null);
     this.repairs
-      .report({ containerId: candidate.containerId, description: this.damageForm.controls.description.value.trim(), source: 'Yard' })
+      .report({
+        containerId: candidate.containerId,
+        description: this.damageForm.controls.description.value.trim(),
+        source: 'Yard',
+      })
       .subscribe({
         next: (recorded) => {
-          this.toast.success(`Đã ghi nhận hư hỏng ${candidate.containerNumber} vào hồ sơ giám định`);
+          this.toast.success(
+            `Đã ghi nhận hư hỏng ${candidate.containerNumber} vào hồ sơ giám định`,
+          );
           this.reporting.set(false);
           // The picked row now has an open case: show it blocked, as the API would answer
           this.form.controls.container.setValue({
@@ -340,8 +385,15 @@ export class GateOutPage {
     return control.invalid && (control.touched || this.repairSubmitted());
   }
 
-  protected positionText(position: { blockCode: string | null; bay: number | null; row: number | null; tier: number | null }): string {
-    return position.blockCode ? formatPosition(position.blockCode, position.bay, position.row, position.tier) : '—';
+  protected positionText(position: {
+    blockCode: string | null;
+    bay: number | null;
+    row: number | null;
+    tier: number | null;
+  }): string {
+    return position.blockCode
+      ? formatPosition(position.blockCode, position.bay, position.row, position.tier)
+      : '—';
   }
 
   // "Dry 20ft 0/1" = what is left on the order line / what was ordered; the facility for an outside repair
@@ -352,8 +404,53 @@ export class GateOutPage {
       : `${CATEGORY_LABEL[row.category]} ${SIZE_LABEL[row.size]} ${row.orderLineRemaining}/${row.orderLineQuantity}`;
   }
 
+  /*
+    Feedback 26/10: the dropdown also lists the operator's containers that are not in the yard;
+    the check says where the container is instead (outside facility, last exit, never came in).
+  */
+  private inYardCheck(candidate: GateOutCandidate): GateOutCheck {
+    const title = 'Container của lệnh, đang ở trong bãi';
+    if (candidate.blockReason === 'NotInYard') {
+      return {
+        title,
+        detail: `${situationText(candidate.situation) || 'Không ở trong bãi'}. Chỉ xuất được container đang trong bãi.`,
+        state: 'fail',
+      };
+    }
+    const since = candidate.gateInAt ? ` · vào ${formatDateTime(candidate.gateInAt)}` : '';
+    return {
+      title,
+      detail: `${SIZE_LABEL[candidate.size]} ${CATEGORY_LABEL[candidate.category]} · ${this.positionText(candidate)}${since}`,
+      state: 'ok',
+    };
+  }
+
+  // The type + size must be on the order with something left; a container of another type is listed, not released
+  private lineCheck(
+    candidate: GateOutCandidate,
+    line: DeliveryOrder['lines'][number] | null,
+  ): GateOutCheck {
+    if (!line) {
+      return {
+        title: 'Lệnh có loại container này',
+        detail: `Lệnh không có dòng ${CATEGORY_LABEL[candidate.category]} ${SIZE_LABEL[candidate.size]}. Chọn container khác.`,
+        state: 'fail',
+      };
+    }
+    return {
+      title: `Lệnh còn số lượng cho ${orderLineLabel(line)}`,
+      detail:
+        line.remainingQuantity > 0
+          ? `Còn ${line.remainingQuantity}/${line.quantity}, sau khi xuất còn ${line.remainingQuantity - 1}`
+          : `Đã giao đủ ${line.quantity}/${line.quantity}. Chọn container loại khác.`,
+      state: line.remainingQuantity > 0 ? 'ok' : 'fail',
+    };
+  }
+
   private aboveCheck(candidate: GateOutCandidate): GateOutCheck {
     const title = 'Không bị container khác đè lên';
+    if (candidate.blockReason === 'NotInYard')
+      return { title, detail: 'Không ở trong bãi', state: 'pending' };
     if (candidate.blockReason === 'ContainerAbove') {
       return {
         title,
@@ -365,18 +462,39 @@ export class GateOutPage {
       // The API does not look further for a container that cannot leave anyway
       return { title, detail: 'Kiểm tra lại sau khi hồ sơ sửa chữa đạt', state: 'pending' };
     }
-    return { title, detail: candidate.tier === null ? 'Block ảo, không xếp chồng' : 'Phía trên trống', state: 'ok' };
+    return {
+      title,
+      detail: candidate.tier === null ? 'Block ảo, không xếp chồng' : 'Phía trên trống',
+      state: 'ok',
+    };
   }
 
   // Feedback 4: an open repair case blocks release whatever its step; "Đạt" closes it
   private repairCheck(candidate: GateOutCandidate): GateOutCheck {
     const title = 'Không có hồ sơ sửa chữa đang mở';
+    // Out of the yard the case is not checked here (it shows in the dropdown line); the API checks again
+    if (candidate.blockReason === 'NotInYard') {
+      const step = candidate.situation?.openRepairStatus;
+      return step
+        ? { title, detail: `Hồ sơ sửa chữa ở bước "${REPAIR_STATUS_LABEL[step]}"`, state: 'fail' }
+        : { title, detail: 'Không ở trong bãi', state: 'pending' };
+    }
     if (candidate.blockReason === 'RepairCase') {
-      const step = candidate.repairStatus ? `ở bước "${REPAIR_STATUS_LABEL[candidate.repairStatus]}"` : 'chưa đạt';
-      return { title, detail: `Hồ sơ giám định/sửa chữa ${step}. Chỉ xuất được khi hồ sơ đạt.`, state: 'fail' };
+      const step = candidate.repairStatus
+        ? `ở bước "${REPAIR_STATUS_LABEL[candidate.repairStatus]}"`
+        : 'chưa đạt';
+      return {
+        title,
+        detail: `Hồ sơ giám định/sửa chữa ${step}. Chỉ xuất được khi hồ sơ đạt.`,
+        state: 'fail',
+      };
     }
     if (candidate.blockReason === 'Damaged') {
-      return { title, detail: 'Container đang ghi Hư hỏng. Tải lại trang để xem hồ sơ.', state: 'fail' };
+      return {
+        title,
+        detail: 'Container đang ghi Hư hỏng. Tải lại trang để xem hồ sơ.',
+        state: 'fail',
+      };
     }
     return { title, detail: 'Không có hư hỏng chờ xử lý', state: 'ok' };
   }
@@ -412,7 +530,12 @@ export class GateOutPage {
   }
 
   private setQuery(params: Record<string, string | null>): void {
-    void this.router.navigate([], { relativeTo: this.route, queryParams: params, queryParamsHandling: 'merge', replaceUrl: true });
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: params,
+      queryParamsHandling: 'merge',
+      replaceUrl: true,
+    });
   }
 
   private loadToday(): void {
