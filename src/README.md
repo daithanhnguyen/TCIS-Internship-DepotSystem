@@ -101,7 +101,7 @@ Unit tests use EF InMemory and a fixed clock (`FixedTimeProvider`), so no real d
 
 | File | Contents | How to use |
 |:--|:--|:--|
-| [docs/erd/depot-erd.dbml](../docs/erd/depot-erd.dbml) | ERD of the 16 depot tables, grouped into catalog, yard operations and inspection & repair | Paste into [dbdiagram.io](https://dbdiagram.io), or publish a shareable page with `dbdocs build docs/erd/depot-erd.dbml` (from the repository root, after `npm install -g dbdocs` and `dbdocs login`) |
+| [docs/erd/depot-erd.dbml](../docs/erd/depot-erd.dbml) | ERD of the 16 depot tables, grouped into catalog, yard operations and inspection & repair | View online: [dbdocs.io/djai-thanh-nguyen/depot-system](https://dbdocs.io/djai-thanh-nguyen/depot-system). After changing the DBML, publish again with `dbdocs build docs/erd/depot-erd.dbml` (from the repository root, after `npm install -g dbdocs` and `dbdocs login`), or paste it into [dbdiagram.io](https://dbdiagram.io) |
 | [docs/sql/statistics.sql](../docs/sql/statistics.sql) | 4 PostgreSQL queries with the same rules as the statistics screens: in yard per line operator (short / long stay), daily gate-in / gate-out, in-yard ranking by dwell days, history of one container | pgAdmin (Aspire dashboard → **pgadmin** → database `TechSpherex-db` → Query Tool), run one query at a time |
 
 - The ERD is generated from the EF Core model snapshot. After a new migration, update the DBML so the two stay in sync.
