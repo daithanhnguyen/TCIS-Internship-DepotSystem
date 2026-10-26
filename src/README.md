@@ -48,7 +48,8 @@ Then start the user interface as described in [client/README.md](../client/READM
 | Task | Command (in `src/`) | Expected result |
 |:--|:--|:--|
 | Build | `dotnet build` | No errors |
-| Unit and architecture tests | `dotnet test` | 292 passed (9 architecture + 283 unit tests) |
+| Unit and architecture tests | `dotnet test` | 298 passed (9 architecture + 289 unit tests) |
+| Code coverage | `powershell -ExecutionPolicy Bypass -File ../scripts/coverage.ps1` | Runs all tests once, report in `../TestResults/CoverageReport/index.html` (scope: `../tests/coverage.runsettings`) |
 
 Unit tests use EF InMemory and a fixed clock (`FixedTimeProvider`), so no real database is needed. The test projects are in `../tests/`.
 

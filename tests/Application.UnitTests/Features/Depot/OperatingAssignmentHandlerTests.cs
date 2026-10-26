@@ -145,7 +145,7 @@ public sealed class OperatingAssignmentHandlerTests
         cancelled.IsSuccess.Should().BeTrue();
         inUse.Error!.Code.Should().Be("OperatingAssignment.InUse");
         list.Value!.Select(a => a.OperatorCode).Should().Equal("CMA", "HMM"); // newest period first
-        list.Value[0].VisitCount.Should().Be(1);
+        list.Value![0].VisitCount.Should().Be(1);
         list.Value[1].Status.Should().Be(OperatingAssignmentStatus.Cancelled);
         list.Value[1].CancelReason.Should().Be("Nhập nhầm hãng");
     }
@@ -161,5 +161,28 @@ public sealed class OperatingAssignmentHandlerTests
         create.Validate(valid with { OperatorId = Guid.Empty }).IsValid.Should().BeFalse();
         new CancelOperatingAssignmentValidator()
             .Validate(new CancelOperatingAssignmentCommand(Guid.NewGuid(), " ")).IsValid.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Confirm_Should_Confirm_A_Pending_Assignment_Once_And_Report_Unknown_Ids()
+    {
+        await using var dbContext = TestDbContextFactory.Create();
+        var seed = await SeedAsync(dbContext);
+        var pending = await CreateAsync(dbContext, seed, seed.Cma, new DateOnly(2026, 10, 1), confirm: false);
+        var handler = new ConfirmOperatingAssignmentCommandHandler(dbContext, Clock);
+
+        var confirmed = await handler.HandleAsync(
+            new ConfirmOperatingAssignmentCommand(pending.Value!.Id), TestContext.Current.CancellationToken);
+        var again = await handler.HandleAsync(
+            new ConfirmOperatingAssignmentCommand(pending.Value.Id), TestContext.Current.CancellationToken);
+        var unknown = await handler.HandleAsync(
+            new ConfirmOperatingAssignmentCommand(Guid.NewGuid()), TestContext.Current.CancellationToken);
+
+        confirmed.IsSuccess.Should().BeTrue();
+        var assignment = dbContext.OperatingAssignments.Single();
+        assignment.Status.Should().Be(OperatingAssignmentStatus.Confirmed);
+        assignment.ConfirmedAt.Should().Be(Now);
+        again.Error!.Code.Should().Be("OperatingAssignment.NotPending");
+        unknown.Error!.Code.Should().Be("OperatingAssignment.NotFound");
     }
 }

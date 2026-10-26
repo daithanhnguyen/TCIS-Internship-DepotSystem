@@ -231,4 +231,22 @@ public sealed class RepairCaseHandlerTests
         validator.Validate(valid with { ContentType = "application/pdf" }).IsValid.Should().BeFalse();
         validator.Validate(valid with { Length = 5 * 1024 * 1024 + 1 }).IsValid.Should().BeFalse();
     }
+
+    [Fact]
+    public void Action_And_Report_Validators_Should_Check_Enums_Note_And_Source()
+    {
+        var action = new ApplyRepairActionValidator();
+        action.Validate(new ApplyRepairActionCommand(Guid.NewGuid(), RepairAction.StartRepair, null)).IsValid.Should().BeTrue();
+        action.Validate(new ApplyRepairActionCommand(Guid.NewGuid(), (RepairAction)99, null)).IsValid.Should().BeFalse();
+        action.Validate(new ApplyRepairActionCommand(Guid.NewGuid(), RepairAction.AcceptRejected, new string('x', 501)))
+            .IsValid.Should().BeFalse();
+
+        var report = new ReportDamageValidator();
+        var valid = new ReportDamageCommand(Guid.NewGuid(), "Móp cửa", RepairFindingSource.Yard);
+        report.Validate(valid).IsValid.Should().BeTrue();
+        report.Validate(valid with { Description = " " }).IsValid.Should().BeFalse();
+        // Gate-in records its damage through the gate-in itself, never through this command
+        report.Validate(valid with { Source = RepairFindingSource.GateIn }).Errors
+            .Should().ContainSingle(e => e.PropertyName == "Source");
+    }
 }

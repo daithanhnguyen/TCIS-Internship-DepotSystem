@@ -6,11 +6,13 @@ using TechSpherex.CleanArchitecture.Application.Features.ContainerVisits.GateOut
 using TechSpherex.CleanArchitecture.Application.Features.ContainerVisits.GateOutForRepair;
 using TechSpherex.CleanArchitecture.Application.Features.ContainerVisits.GetDaily;
 using TechSpherex.CleanArchitecture.Application.Features.ContainerVisits.GetGateOutCandidates;
+using TechSpherex.CleanArchitecture.Application.Features.ContainerVisits.History;
 using TechSpherex.CleanArchitecture.Application.Features.DeliveryOrders.Cancel;
 using TechSpherex.CleanArchitecture.Application.Features.DeliveryOrders.GetAll;
 using TechSpherex.CleanArchitecture.Application.Features.RepairCases.Act;
 using TechSpherex.CleanArchitecture.Application.Features.RepairCases.External;
 using TechSpherex.CleanArchitecture.Application.Features.RepairCases.Get;
+using TechSpherex.CleanArchitecture.Application.Features.RepairCases.Photos;
 using TechSpherex.CleanArchitecture.Domain.Common;
 using TechSpherex.CleanArchitecture.Domain.Entities;
 using TechSpherex.CleanArchitecture.Domain.Enums;
@@ -407,5 +409,104 @@ public sealed class GateOutOrderAndRepairTests
         var never = byNumber["CSQU3054383"];
         never.Should().Be(new ContainerSituation(
             false, null, null, null, null, null, null, null, null, null, null, null));
+    }
+
+    /*
+        The gate-out page lists transfers waiting to leave (Status = Requested) and searches them by
+        container number. Two transfers: MSCU1234566 still in the yard, CMAU1234564 already at the facility.
+    */
+    [Fact]
+    public async Task External_Repair_List_Should_Filter_By_Status_And_Container_Number()
+    {
+        await using var dbContext = TestDbContextFactory.Create();
+        var seed = await SeedAsync(dbContext);
+        var waiting = await AddContainerAsync(dbContext, "MSCU1234566");
+        var gone = await AddContainerAsync(dbContext, "CMAU1234564");
+        foreach (var (container, bay) in new[] { (waiting, 1), (gone, 3) })
+        {
+            var caseId = (await GateInAsync(dbContext, seed, container, bay, condition: ContainerCondition.Damaged)).RepairCaseId!.Value;
+            await ActAsync(dbContext, caseId, RepairAction.InspectNeedsRepair);
+            await RepairEstimateSteps.ApproveAsync(dbContext, caseId, new FixedTimeProvider(Now));
+            var requested = await RequestExternalAsync(dbContext, caseId);
+            if (container == gone)
+                await GateOutForRepairAsync(dbContext, requested.Value);
+        }
+        var handler = new GetExternalRepairsQueryHandler(dbContext);
+
+        var toLeave = await handler.HandleAsync(
+            new GetExternalRepairsQuery(ExternalRepairStatus.Requested), TestContext.Current.CancellationToken);
+        var bySearch = await handler.HandleAsync(
+            new GetExternalRepairsQuery(Search: " cmau "), TestContext.Current.CancellationToken);
+        var firstPage = await handler.HandleAsync(
+            new GetExternalRepairsQuery(PageSize: 1), TestContext.Current.CancellationToken);
+
+        // Waiting to leave: still in the yard, so its position is filled in
+        var row = toLeave.Value!.Items.Should().ContainSingle().Subject;
+        row.ContainerNumber.Should().Be("MSCU1234566");
+        row.BlockCode.Should().Be("A");
+        row.Facility.Should().Be("Xưởng Cát Lái");
+
+        // Search ignores case and spaces; a container at the facility has no yard position
+        var outside = bySearch.Value!.Items.Should().ContainSingle().Subject;
+        outside.Status.Should().Be(ExternalRepairStatus.GatedOut);
+        outside.BlockCode.Should().BeNull();
+
+        firstPage.Value!.TotalCount.Should().Be(2);
+        firstPage.Value.Items.Should().HaveCount(1);
+    }
+
+    [Fact]
+    public void External_Repair_Validators_Should_Need_Facility_Reason_Reference_And_Vehicle()
+    {
+        var request = new RequestExternalRepairValidator();
+        var validRequest = new RequestExternalRepairCommand(Guid.NewGuid(), "Xưởng Cát Lái", "Thay vách", "CMA-APP-0042");
+
+        request.Validate(validRequest).IsValid.Should().BeTrue();
+        request.Validate(validRequest with { Facility = " " }).IsValid.Should().BeFalse();
+        request.Validate(validRequest with { Reference = new string('X', 101) }).IsValid.Should().BeFalse();
+        request.Validate(validRequest with { CaseId = Guid.Empty }).IsValid.Should().BeFalse();
+
+        var cancel = new CancelExternalRepairValidator();
+        cancel.Validate(new CancelExternalRepairCommand(Guid.NewGuid(), "Sửa được tại bãi")).IsValid.Should().BeTrue();
+        cancel.Validate(new CancelExternalRepairCommand(Guid.NewGuid(), "")).IsValid.Should().BeFalse();
+
+        var leave = new GateOutForRepairValidator();
+        leave.Validate(new GateOutForRepairCommand(Guid.NewGuid(), "51C-77777")).IsValid.Should().BeTrue();
+        leave.Validate(new GateOutForRepairCommand(Guid.NewGuid(), new string('9', 21))).IsValid.Should().BeFalse();
+        leave.Validate(new GateOutForRepairCommand(Guid.Empty, "51C-77777")).IsValid.Should().BeFalse();
+    }
+
+    /*
+        Visit detail of a container sent for outside repair: the first visit keeps the operating assignment,
+        the damage photo and the transfer that took it out; the visit after its return keeps the return.
+    */
+    [Fact]
+    public async Task Visit_Detail_Should_List_Assignment_Photo_And_External_Repair_Documents()
+    {
+        await using var dbContext = TestDbContextFactory.Create();
+        var seed = await SeedAsync(dbContext);
+        var container = await AddContainerAsync(dbContext, "MSCU1234566");
+        var first = await GateInAsync(dbContext, seed, container, bay: 1, condition: ContainerCondition.Damaged);
+        var caseId = first.RepairCaseId!.Value;
+        byte[] png = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 1, 2, 3, 4];
+        await new UploadRepairPhotoCommandHandler(dbContext, new FakePhotoStorage(), new FixedTimeProvider(Now), new FakeCurrentUser())
+            .HandleAsync(new UploadRepairPhotoCommand(caseId, null, "vach.png", "image/png", png.Length, new MemoryStream(png)),
+                TestContext.Current.CancellationToken);
+        await ActAsync(dbContext, caseId, RepairAction.InspectNeedsRepair);
+        await RepairEstimateSteps.ApproveAsync(dbContext, caseId, new FixedTimeProvider(Now));
+        var requested = await RequestExternalAsync(dbContext, caseId);
+        await GateOutForRepairAsync(dbContext, requested.Value);
+        var back = await GateInAsync(dbContext, seed, container, bay: 1);
+        var handler = new GetVisitHistoryQueryHandler(dbContext, new FixedTimeProvider(Now));
+
+        var outVisit = (await handler.HandleAsync(new GetVisitHistoryQuery(first.VisitId), TestContext.Current.CancellationToken)).Value!;
+        var returnVisit = (await handler.HandleAsync(new GetVisitHistoryQuery(back.VisitId), TestContext.Current.CancellationToken)).Value!;
+
+        outVisit.Documents.Select(d => d.Kind).Should().BeEquivalentTo(
+            [VisitDocumentKind.OperatingAssignment, VisitDocumentKind.RepairPhoto, VisitDocumentKind.ExternalRepairOut]);
+        outVisit.Documents.Should().Contain(d => d.Kind == VisitDocumentKind.ExternalRepairOut
+            && d.Reference == "CMA-APP-0042 · Xưởng Cát Lái");
+        outVisit.GateOut!.RepairFacility.Should().Be("Xưởng Cát Lái");
+        returnVisit.Documents.Should().Contain(d => d.Kind == VisitDocumentKind.ExternalRepairReturn);
     }
 }

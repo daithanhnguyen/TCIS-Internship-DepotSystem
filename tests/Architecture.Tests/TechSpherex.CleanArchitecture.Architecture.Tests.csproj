@@ -15,5 +15,7 @@
     <PackageReference Include="xunit.runner.visualstudio" />
     <PackageReference Include="FluentAssertions" />
     <PackageReference Include="NetArchTest.Rules" />
+    <!-- Code coverage collector, so scripts/coverage.ps1 can run every test project in one go -->
+    <PackageReference Include="coverlet.collector" />
   </ItemGroup>
 </Project>

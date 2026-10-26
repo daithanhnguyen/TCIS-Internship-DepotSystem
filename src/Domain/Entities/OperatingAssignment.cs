@@ -99,13 +99,5 @@ public sealed class OperatingAssignment : AuditableEntity
         return Result.Success();
     }
 
-    // Confirmed and the date is inside [ValidFrom, ValidTo]
-    public bool CoversDate(DateOnly date) =>
-        Status == OperatingAssignmentStatus.Confirmed && ValidFrom <= date && (ValidTo is null || date <= ValidTo);
-
-    // Two periods share at least one day (an open end counts as "for ever")
-    public bool Overlaps(DateOnly from, DateOnly? to) =>
-        ValidFrom <= (to ?? DateOnly.MaxValue) && from <= (ValidTo ?? DateOnly.MaxValue);
-
     private static string? Clean(string? text) => string.IsNullOrWhiteSpace(text) ? null : text.Trim();
 }

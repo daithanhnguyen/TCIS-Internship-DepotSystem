@@ -8,7 +8,7 @@ namespace TechSpherex.CleanArchitecture.Application.Features.OperatingAssignment
 // Queries shared by gate-in, the container catalog and the assignment commands
 public static class OperatingAssignmentQueries
 {
-    // Confirmed and covering the date (same rule as OperatingAssignment.CoversDate, written for SQL)
+    // Confirmed and covering the date: ValidFrom <= date and (no end or date <= ValidTo), translated to SQL
     public static IQueryable<OperatingAssignment> ActiveOn(this IQueryable<OperatingAssignment> assignments, DateOnly date) =>
         assignments.Where(a =>
             a.Status == OperatingAssignmentStatus.Confirmed &&

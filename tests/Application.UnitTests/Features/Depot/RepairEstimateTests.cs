@@ -259,4 +259,18 @@ public sealed class RepairEstimateTests
         rejectWithoutReason.Errors.Should().ContainSingle(e => e.PropertyName == "Note");
         create.IsValid.Should().BeTrue();
     }
+
+    [Fact]
+    public void Payer_Validator_Should_Check_Ids_Enums_And_Lengths()
+    {
+        var validator = new SetEstimateLinePayerValidator();
+        var valid = new SetEstimateLinePayerCommand(
+            Guid.NewGuid(), Guid.NewGuid(), CostPayer.LineOperator, "CMA CGM", CostPayerStatus.Agreed, null);
+
+        validator.Validate(valid).IsValid.Should().BeTrue();
+        validator.Validate(valid with { LineId = Guid.Empty }).IsValid.Should().BeFalse();
+        validator.Validate(valid with { Payer = (CostPayer)99 }).IsValid.Should().BeFalse();
+        validator.Validate(valid with { Status = (CostPayerStatus)99 }).IsValid.Should().BeFalse();
+        validator.Validate(valid with { PayerName = new string('x', 201) }).IsValid.Should().BeFalse();
+    }
 }
