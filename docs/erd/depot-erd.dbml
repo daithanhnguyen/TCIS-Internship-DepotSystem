@@ -1,0 +1,342 @@
+// Depot System - ERD (from the EF Core model snapshot, migration IsoContainerNumbers)
+// View: paste into https://dbdiagram.io, or publish with dbdocs (dbdocs build docs/erd/depot-erd.dbml).
+// Unique indexes with a "where" note are partial indexes in PostgreSQL (DBML cannot express the filter).
+
+Project depot_system {
+  database_type: 'PostgreSQL'
+  Note: '''
+# TCIS Depot System - Database
+
+Hệ thống quản lý depot container rỗng (thực tập TCIS). .NET 10 Clean Architecture + EF Core + PostgreSQL, client Angular.
+
+**Danh mục:** Đối tác (chủ sở hữu / hãng khai thác), Khách hàng, Block (Bay/Row/Tier, block ảo), Container, Quan hệ khai thác theo giai đoạn.
+
+**Vận hành bãi:** mỗi lần vào bãi là một lượt (ContainerVisits), lượt mở khi GateOutAt rỗng; lịch sử đảo chuyển; lệnh giao và các dòng số lượng theo loại + kích thước.
+
+**Giám định & sửa chữa:** hồ sơ (mỗi container tối đa một hồ sơ mở), phát hiện hư hỏng, ảnh, nhật ký, dự toán theo phiên bản, bên chịu phí từng hạng mục, chuyển sửa ngoài.
+
+Quy tắc chính: một container chỉ có một lượt mở; một ô (Block, Bay, Row, Tier) chỉ có một container; bay lẻ 20ft, bay chẵn 40ft; hãng của lượt lấy từ quan hệ khai thác đã xác nhận.
+
+Repo: https://github.com/daithanhnguyen/TCIS-Internship-DepotSystem
+'''
+}
+
+Table LineOperators {
+  Id uuid [pk]
+  Code varchar(10) [not null]
+  IsOperator boolean [not null]
+  IsOwner boolean [not null]
+  Name varchar(200) [not null]
+  TaxCode varchar(20)
+  CreatedAt timestamptz [not null]
+  indexes {
+    Code [unique]
+  }
+  Note: 'Partner catalog: owner and/or operating line (IsOwner, IsOperator)'
+}
+
+Table Customers {
+  Id uuid [pk]
+  Name varchar(200) [not null]
+  TaxCode varchar(20) [not null]
+  CreatedAt timestamptz [not null]
+  indexes {
+    TaxCode [unique]
+  }
+}
+
+Table Blocks {
+  Id uuid [pk]
+  AllowedCategories "text[]" [not null]
+  ArchivedAt timestamptz
+  Code varchar(10) [not null]
+  Description varchar(200)
+  IsVirtual boolean [not null]
+  MaxBays integer
+  MaxRows integer
+  MaxTiers integer
+  PlacementVersion integer [not null]
+  CreatedAt timestamptz [not null]
+  indexes {
+    Code [unique]
+  }
+  Note: 'Virtual block: no Bay/Row/Tier. AllowedCategories = container types accepted'
+}
+
+Table Containers {
+  Id uuid [pk]
+  Category varchar(20) [not null]
+  Condition varchar(20) [not null]
+  ConditionNote varchar(500)
+  ContainerNumber varchar(11) [not null]
+  IsoCode varchar(4) [not null]
+  ManufactureDate date
+  MaxGrossWeightKg integer [not null]
+  OwnerId uuid
+  OwnerName varchar(100) [not null, note: 'legacy text, owner is OwnerId']
+  Size varchar(10) [not null]
+  TareWeightKg integer [not null]
+  CreatedAt timestamptz [not null]
+  indexes {
+    ContainerNumber [unique]
+  }
+}
+
+Table OperatingAssignments {
+  Id uuid [pk]
+  CancelReason varchar(500)
+  CancelledAt timestamptz
+  ConfirmedAt timestamptz
+  ContainerId uuid [not null]
+  EndedAt timestamptz
+  CreatedAt timestamptz [not null]
+  Note varchar(500)
+  OperatorId uuid [not null]
+  Reference varchar(50)
+  Status varchar(20) [not null]
+  ValidFrom date [not null]
+  ValidTo date
+  Note: 'Which line operates a container in a period (Pending/Confirmed/Ended/Cancelled)'
+}
+
+Table ContainerVisits {
+  Id uuid [pk]
+  Bay integer
+  BlockId uuid [not null]
+  ConditionIn varchar(20) [not null]
+  ConditionNoteIn varchar(500)
+  ContainerId uuid [not null]
+  DeliveryOrderId uuid
+  ExitPurpose varchar(20)
+  GateInAt timestamptz [not null]
+  GateInBay integer
+  GateInBlockId uuid
+  GateInRow integer
+  GateInTier integer
+  GateInVehicleNo varchar(20) [not null]
+  GateOutAt timestamptz
+  GateOutVehicleNo varchar(20)
+  Grade varchar(5) [note: 'legacy A/B/C, no longer used']
+  LineOperatorId uuid [not null]
+  OperatingAssignmentId uuid
+  OwnerId uuid
+  Row integer
+  Tier integer
+  CreatedAt timestamptz [not null]
+  indexes {
+    ContainerId [unique, note: 'where GateOutAt IS NULL']
+    (BlockId, Bay, Row, Tier) [unique, note: 'where GateOutAt IS NULL AND Bay IS NOT NULL']
+  }
+  Note: 'One row per gate-in..gate-out visit. Open visit = GateOutAt IS NULL'
+}
+
+Table ContainerMoves {
+  Id uuid [pk]
+  FromBay integer
+  FromBlockId uuid [not null]
+  FromRow integer
+  FromTier integer
+  MovedAt timestamptz [not null]
+  MovedBy varchar(256)
+  ToBay integer
+  ToBlockId uuid [not null]
+  ToRow integer
+  ToTier integer
+  VisitId uuid [not null]
+  CreatedAt timestamptz [not null]
+}
+
+Table DeliveryOrders {
+  Id uuid [pk]
+  CancelReason varchar(500)
+  CancelledAt timestamptz
+  CustomerId uuid [not null]
+  ExpiryDate date [not null]
+  LastReleasedAt timestamptz
+  LineOperatorId uuid [not null]
+  OrderNumber varchar(30) [not null]
+  VesselVoyage varchar(50) [not null]
+  CreatedAt timestamptz [not null]
+  indexes {
+    OrderNumber [unique]
+  }
+}
+
+Table DeliveryOrderLines {
+  Id uuid [pk]
+  Category varchar(20) [not null]
+  DeliveryOrderId uuid [not null]
+  Quantity integer [not null]
+  ReleasedQuantity integer [not null]
+  Size varchar(10)
+  indexes {
+    (DeliveryOrderId, Category, Size) [unique]
+  }
+}
+
+Table RepairCases {
+  Id uuid [pk]
+  ClosedAt timestamptz
+  ContainerId uuid [not null]
+  OpenedAt timestamptz [not null]
+  RepairNeeded boolean
+  Status varchar(30) [not null]
+  VisitId uuid
+  CreatedAt timestamptz [not null]
+  indexes {
+    ContainerId [unique, note: 'where Status <> Passed']
+  }
+  Note: 'At most one open case per container'
+}
+
+Table RepairFindings {
+  Id uuid [pk]
+  Description varchar(500) [not null]
+  RepairCaseId uuid [not null]
+  ReportedAt timestamptz [not null]
+  ReportedBy varchar(256)
+  Source varchar(20) [not null]
+  VisitId uuid
+}
+
+Table RepairPhotos {
+  Id uuid [pk]
+  ContentType varchar(50) [not null]
+  FindingId uuid
+  OriginalFileName varchar(255) [not null]
+  RepairCaseId uuid [not null]
+  SizeBytes bigint [not null]
+  StoredFileName varchar(64) [not null]
+  UploadedAt timestamptz [not null]
+  UploadedBy varchar(256)
+  indexes {
+    StoredFileName [unique]
+  }
+}
+
+Table RepairCaseEvents {
+  Id uuid [pk]
+  At timestamptz [not null]
+  By varchar(256)
+  FromStatus varchar(30)
+  Kind varchar(30) [not null]
+  Note varchar(500)
+  RepairCaseId uuid [not null]
+  ToStatus varchar(30) [not null]
+}
+
+Table RepairEstimates {
+  Id uuid [pk]
+  ApprovalReference varchar(200)
+  ApproverName varchar(200)
+  ApproverParty varchar(200)
+  Currency varchar(3) [not null]
+  DecidedAt timestamptz
+  DecisionNote varchar(1000)
+  DecisionRecordedBy varchar(256)
+  Evidence varchar(1000)
+  CreatedAt timestamptz [not null]
+  Note varchar(1000)
+  RepairCaseId uuid [not null]
+  Status varchar(20) [not null]
+  SubmittedAt timestamptz
+  SubmittedBy varchar(256)
+  Version integer [not null]
+  indexes {
+    RepairCaseId [unique, note: 'where Status IN (Draft, Submitted)']
+    (RepairCaseId, Version) [unique]
+  }
+}
+
+Table RepairEstimateLines {
+  Id uuid [pk]
+  Amount numeric(18,2) [not null]
+  DamageDescription varchar(500) [not null]
+  EstimateId uuid [not null]
+  FindingId uuid
+  Payer varchar(20) [not null]
+  PayerName varchar(200)
+  PayerNote varchar(500)
+  PayerStatus varchar(20) [not null]
+  Position integer [not null]
+  RepairMethod varchar(500) [not null]
+}
+
+Table ExternalRepairTransfers {
+  Id uuid [pk]
+  CancelReason varchar(500)
+  CancelledAt timestamptz
+  ContainerId uuid [not null]
+  Facility varchar(200) [not null]
+  GateOutVisitId uuid
+  GatedOutAt timestamptz
+  Reason varchar(500) [not null]
+  Reference varchar(100) [not null]
+  RepairCaseId uuid [not null]
+  RequestedAt timestamptz [not null]
+  RequestedBy varchar(256)
+  ReturnVisitId uuid
+  ReturnedAt timestamptz
+  Status varchar(20) [not null]
+  CreatedAt timestamptz [not null]
+  indexes {
+    RepairCaseId [unique, note: 'where Status IN (Requested, GatedOut)']
+  }
+  Note: 'Container sent out of the depot for repair and its return visit'
+}
+
+Ref: Containers.OwnerId > LineOperators.Id
+Ref: ContainerMoves.FromBlockId > Blocks.Id
+Ref: ContainerMoves.ToBlockId > Blocks.Id
+Ref: ContainerMoves.VisitId > ContainerVisits.Id
+Ref: ContainerVisits.BlockId > Blocks.Id
+Ref: ContainerVisits.ContainerId > Containers.Id
+Ref: ContainerVisits.DeliveryOrderId > DeliveryOrders.Id
+Ref: ContainerVisits.GateInBlockId > Blocks.Id
+Ref: ContainerVisits.LineOperatorId > LineOperators.Id
+Ref: ContainerVisits.OperatingAssignmentId > OperatingAssignments.Id
+Ref: ContainerVisits.OwnerId > LineOperators.Id
+Ref: DeliveryOrders.CustomerId > Customers.Id
+Ref: DeliveryOrders.LineOperatorId > LineOperators.Id
+Ref: DeliveryOrderLines.DeliveryOrderId > DeliveryOrders.Id
+Ref: ExternalRepairTransfers.ContainerId > Containers.Id
+Ref: ExternalRepairTransfers.GateOutVisitId > ContainerVisits.Id
+Ref: ExternalRepairTransfers.RepairCaseId > RepairCases.Id
+Ref: ExternalRepairTransfers.ReturnVisitId > ContainerVisits.Id
+Ref: OperatingAssignments.ContainerId > Containers.Id
+Ref: OperatingAssignments.OperatorId > LineOperators.Id
+Ref: RepairCases.ContainerId > Containers.Id
+Ref: RepairCases.VisitId > ContainerVisits.Id
+Ref: RepairCaseEvents.RepairCaseId > RepairCases.Id
+Ref: RepairEstimates.RepairCaseId > RepairCases.Id
+Ref: RepairEstimateLines.EstimateId > RepairEstimates.Id
+Ref: RepairEstimateLines.FindingId > RepairFindings.Id
+Ref: RepairFindings.RepairCaseId > RepairCases.Id
+Ref: RepairFindings.VisitId > ContainerVisits.Id
+Ref: RepairPhotos.FindingId > RepairFindings.Id
+Ref: RepairPhotos.RepairCaseId > RepairCases.Id
+
+TableGroup Catalog {
+  LineOperators
+  Customers
+  Blocks
+  Containers
+  OperatingAssignments
+}
+
+TableGroup YardOperations {
+  ContainerVisits
+  ContainerMoves
+  DeliveryOrders
+  DeliveryOrderLines
+}
+
+TableGroup InspectionAndRepair {
+  RepairCases
+  RepairFindings
+  RepairPhotos
+  RepairCaseEvents
+  RepairEstimates
+  RepairEstimateLines
+  ExternalRepairTransfers
+}

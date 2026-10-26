@@ -96,3 +96,13 @@ Unit tests use EF InMemory and a fixed clock (`FixedTimeProvider`), so no real d
 - Reset deletes all depot data (accounts are kept) and creates the demo again with a new anchor date.
 - The demo routes exist only in Development when started from AppHost.
 - Scenario of each container: [docs/demo-data.md](../docs/demo-data.md).
+
+## 8. Database diagram and SQL
+
+| File | Contents | How to use |
+|:--|:--|:--|
+| [docs/erd/depot-erd.dbml](../docs/erd/depot-erd.dbml) | ERD of the 16 depot tables, grouped into catalog, yard operations and inspection & repair | Paste into [dbdiagram.io](https://dbdiagram.io), or publish a shareable page with `dbdocs build docs/erd/depot-erd.dbml` (from the repository root, after `npm install -g dbdocs` and `dbdocs login`) |
+| [docs/sql/statistics.sql](../docs/sql/statistics.sql) | 4 PostgreSQL queries with the same rules as the statistics screens: in yard per line operator (short / long stay), daily gate-in / gate-out, in-yard ranking by dwell days, history of one container | pgAdmin (Aspire dashboard → **pgadmin** → database `TechSpherex-db` → Query Tool), run one query at a time |
+
+- The ERD is generated from the EF Core model snapshot. After a new migration, update the DBML so the two stay in sync.
+- The SQL is read-only: it only uses `SELECT`.
